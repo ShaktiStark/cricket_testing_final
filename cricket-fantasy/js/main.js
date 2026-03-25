@@ -89,6 +89,7 @@ window._renderTournamentContent = renderTournamentContent;
 setCaptainSavedCallback(() => {
   renderSubCaptain(getTournament());
   renderLeaderboard(getTournament());
+  renderMatchesList(getTournament());
 });
 
 // ── Page renderers registered in the nav system ───

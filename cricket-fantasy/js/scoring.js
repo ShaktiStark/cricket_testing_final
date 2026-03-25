@@ -6,6 +6,7 @@ import { norm, isSamePlayer, parseOvers, normalizeScorecard } from './utils.js';
 // ── Batting points ────────────────────────────────
 export function calcBat(runs, balls, fours, sixes, sr, duck, notOut = false) {
   const J = duck ? -10 : runs;
+  let neg = duck ? -10 : 0;
 
   let K = 0;
   if (runs >= 25)  K += 25;
@@ -30,14 +31,16 @@ export function calcBat(runs, balls, fours, sixes, sr, duck, notOut = false) {
   else                L = 100;
 
   const M = (runs > 20 || balls >= 10) ? L : 0;
+  if (M < 0) neg += M;
   const notOutBonus = notOut ? 10 : 0;
 
-  return J + K + M + (fours * 1) + (sixes * 2) + notOutBonus;
+  return { total: J + K + M + (fours * 1) + (sixes * 2) + notOutBonus, negative: neg };
 }
 
 // ── Bowling points ────────────────────────────────
 export function calcBowl(wkts, maidens, runs, oversDec, eco, wides = 0, noballs = 0, lbwBowled = 0) {
   let pts = wkts * 25;
+  let neg = 0;
 
   if      (wkts >= 8) pts += 175;
   else if (wkts === 7) pts += 150;
@@ -49,6 +52,7 @@ export function calcBowl(wkts, maidens, runs, oversDec, eco, wides = 0, noballs 
   pts += lbwBowled * 10;
   pts += maidens * 40;
   pts -= (wides + noballs) * 2;
+  neg -= (wides + noballs) * 2;
 
   if (oversDec >= 2) {
     if      (eco < 1)   pts += 120;
@@ -57,13 +61,13 @@ export function calcBowl(wkts, maidens, runs, oversDec, eco, wides = 0, noballs 
     else if (eco < 6)   pts += 20;
     else if (eco < 8)   pts += 10;
     else if (eco <= 10) pts += 0;
-    else if (eco > 16)  pts -= 60;
-    else if (eco > 14)  pts -= 40;
-    else if (eco > 12)  pts -= 20;
-    else if (eco > 10)  pts -= 10;
+    else if (eco > 16)  { pts -= 60; neg -= 60; }
+    else if (eco > 14)  { pts -= 40; neg -= 40; }
+    else if (eco > 12)  { pts -= 20; neg -= 20; }
+    else if (eco > 10)  { pts -= 10; neg -= 10; }
   }
 
-  return pts;
+  return { total: pts, negative: neg };
 }
 
 // ── Build the lbw/bowled map for an entire scorecard ──
@@ -93,7 +97,7 @@ export function applyMatch(tournament, matchInfo, rawScorecard) {
     players: (team.players || []).map(player => {
       if (player.isInjured) return player;
 
-      let bat = 0, bowl = 0, field = 0;
+      let bat = 0, bowl = 0, field = 0, neg = 0;
       let runs = 0, balls = 0, fours = 0, sixes = 0, sr = 0;
       let wkts = 0, overs = 0, runsConceded = 0, eco = 0;
       let catches = 0, runouts = 0, stumpings = 0;
@@ -109,7 +113,8 @@ export function applyMatch(tournament, matchInfo, rawScorecard) {
           sr      = b.sr ? parseFloat(b.sr) : sr;
           const duck   = runs === 0 && balls > 0;
           const notOut = (b['dismissal-text'] || '').toLowerCase().includes('not out');
-          bat = calcBat(runs, balls, fours, sixes, sr, duck, notOut);
+          const batRes = calcBat(runs, balls, fours, sixes, sr, duck, notOut);
+          bat = batRes.total; neg += batRes.negative;
         });
 
         // ── Bowling ──────────────────────────────
@@ -122,7 +127,8 @@ export function applyMatch(tournament, matchInfo, rawScorecard) {
           const wides  = +(bw.wd || 0);
           const noballs = +(bw.nb || 0);
           const lbwBowled = lbwMap[norm(player.name)] || 0;
-          bowl = calcBowl(wkts, bw.m || 0, runsConceded, overs, eco, wides, noballs, lbwBowled);
+          const bowlRes = calcBowl(wkts, bw.m || 0, runsConceded, overs, eco, wides, noballs, lbwBowled);
+          bowl = bowlRes.total; neg += bowlRes.negative;
         });
 
         // ── Fielding ─────────────────────────────
@@ -136,13 +142,14 @@ export function applyMatch(tournament, matchInfo, rawScorecard) {
       });
 
       const total = bat + bowl + field;
-      if (total === 0) return player;
+      if (total === 0 && neg === 0) return player;
 
         const mp = {
           batting:  { runs, balls, strikeRate: sr, fours, sixes, points: bat },
-          bowling:  { wickets: wkts, overs, runs: runsConceded, economy: eco, points: bowl },
+          bowling:  { wickets: wkts, overs, runs: runsConceded, economy: eco, wides, noballs, points: bowl },
           fielding: { catches, runouts, stumpings, points: field },
-          bonus:    { milestone: 0, mom: 0 }
+          bonus:    { milestone: 0, mom: 0 },
+          negative: neg
         };
 
         return {

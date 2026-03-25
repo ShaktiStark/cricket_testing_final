@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════
 // LEADERBOARD — standings + top performers
 // ═══════════════════════════════════════════════════
-import { escHtml, norm } from './utils.js';
+import { escHtml, escAttr, norm } from './utils.js';
 import { weekKey }       from './week.js';
 
 // ── Captain multiplier helper (used here AND in matches.js) ──
@@ -100,7 +100,7 @@ export function renderLeaderboard(t) {
   const teams = t.teams || [];
 
   const ranked = [...teams]
-    .map(tm => ({ ...tm, total: (tm.players || []).reduce((s, p) => s + playerTotalWithCap(p, t), 0) }))
+    .map(tm => ({ ...tm, total: (tm.players || []).filter(p => !p.isInjured).reduce((s, p) => s + playerTotalWithCap(p, t), 0) }))
     .sort((a, b) => b.total - a.total);
 
   const allP = teams.flatMap(tm =>
@@ -133,7 +133,9 @@ export function renderLeaderboard(t) {
       const natLine   = p.cricketTeam
         ? `<div style="font-size:12px;color:var(--dim);margin-top:3px">🏏 ${escHtml(p.cricketTeam)}</div>` : '';
       const ownerLine = `<div style="font-size:12px;color:var(--acc);margin-top:2px">👤 ${escHtml(p.ownerName || p.teamName)}</div>`;
-      const picHtml   = p.playerImg ? `<img src="${escAttr(p.playerImg)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--bdr);flex-shrink:0"/>` : '';
+      const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=e2e8f0&color=64748b&bold=true`;
+      const imgSrc = p.playerImg ? escAttr(p.playerImg) : fallbackImg;
+      const picHtml = `<img src="${imgSrc}" onerror="this.src='${fallbackImg}'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--bdr);flex-shrink:0"/>`;
       const roleHtml  = p.role ? `<span style="font-size:11px;color:var(--dim);margin-left:8px;font-weight:600">· ${escHtml(p.role)}</span>` : '';
       return `
         <div class="flex items-center gap-12" style="padding:11px 0;border-bottom:1px solid var(--bdr)">
@@ -219,7 +221,7 @@ export function renderLeaderboard(t) {
 
       const matchRows = matches.map(m => {
         const pts   = mp[m.id] || {};
-        const base = (pts.batting?.points  || 0) +
+        let total = (pts.batting?.points  || 0) +
               (pts.bowling?.points  || 0) +
               (pts.fielding?.points || 0) +
               (pts.bonus?.mom       || 0) +
@@ -228,43 +230,37 @@ export function renderLeaderboard(t) {
               (pts.bonus?.hatrick   || 0) +
               (pts.bonus?.sixSixes  || 0) +
               (pts.bonus?.sixFours  || 0);
-              
-        if (base === 0) return '';
-        
-        // Find multiplier for this match
-        let mult = 1;
-        if (m.date && team.id) {
-          const matchTs  = new Date(m.date).getTime();
-          const matchWk  = weekKey(new Date(m.date));
-          const wc       = t.weeklyCaptains || {};
-          let cap = wc[matchWk]?.[team.id];
-          
-          if (!cap) {
-            const allWkKeys = Object.keys(wc).sort().reverse();
-            for (const wk of allWkKeys) {
-              if (new Date(wk).getTime() <= matchTs) {
-                cap = wc[wk]?.[team.id];
-                if (cap) break;
-              }
+        if (total === 0) return '';
+
+        const wc = t.weeklyCaptains || {};
+        const sortedWks = Object.keys(wc).sort().reverse();
+        let cap = {};
+        if (m.date) {
+            const matchTs = new Date(m.date).getTime();
+            const exactWk = weekKey(new Date(m.date));
+            if (wc[exactWk]?.[team.id]) {
+                cap = wc[exactWk][team.id];
+            } else {
+                for (const wk of sortedWks) {
+                    if (new Date(wk).getTime() <= matchTs && wc[wk]?.[team.id]) {
+                        cap = wc[wk][team.id];
+                        break;
+                    }
+                }
             }
-            if (!cap && allWkKeys.length) {
-              cap = wc[allWkKeys[0]]?.[team.id];
-            }
-          }
-          
-          if (cap) {
-             if (String(cap.captain) === String(p.id)) mult = 2;
-             else if (String(cap.vc) === String(p.id)) mult = 1.5;
-          }
         }
         
-        const total = base * mult;
-        const multDisplay = mult > 1 ? `<span style="font-size:10px;color:var(--dim);margin-right:6px">(${mult}x)</span>` : '';
+        const isC  = cap && String(cap.captain) === String(p.id);
+        const isVC = cap && String(cap.vc)      === String(p.id);
+        const mult = isC ? 2 : isVC ? 1.5 : 1;
+        total = Math.round(total * mult * 10) / 10;
 
         return `
           <tr style="border-bottom:1px solid var(--bdr)">
             <td style="padding:6px 0;font-size:12px;color:#000">${escHtml(m.name || '')}</td>
-            <td style="padding:6px 0;text-align:right;font-size:12px;font-weight:700;color:#000">${multDisplay}+${total}</td>
+            <td style="padding:6px 0;text-align:right;font-size:12px;font-weight:700;color:#000">
+              ${mult > 1 ? `<span style="color:var(--dim);text-decoration:line-through;margin-right:4px">${Math.round(total/mult*10)/10}</span>` : ''}${total > 0 ? '+' : ''}${total}
+            </td>
           </tr>`;
       }).join('');
 
@@ -272,19 +268,19 @@ export function renderLeaderboard(t) {
         <div class="player-row" onclick="event.stopPropagation(); togglePlayerMatches(this)"
              style="cursor:pointer;display:flex;align-items:center;gap:10px;${p.isInjured ? 'opacity:.5' : ''}">
           ${p.isInjured ? '<span style="font-size:13px">🩹</span>' : ''}
-          ${p.playerImg ? `<img src="${escAttr(p.playerImg)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--bdr)"/>` : ''}
+          <img src="${p.playerImg ? escAttr(p.playerImg) : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=e2e8f0&color=64748b&bold=true`}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=e2e8f0&color=64748b&bold=true'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--bdr)"/>
           <div class="flex-1">
             <div class="${p.isInjured ? 'txt-dim' : 'txt-main'} fw-600"
                  style="font-size:14px;${p.isInjured ? 'text-decoration:line-through' : ''};display:flex;align-items:center;flex-wrap:wrap">
               ${badgePill}${escHtml(p.name)}
               ${p.role ? `<span style="font-size:10px;color:var(--dim);margin-left:6px;font-weight:600">· ${escHtml(p.role)}</span>` : ''}
-              <span style="margin-left:6px;font-size:10px;color:#9ca3af">▼</span>
+              <span class="toggle-arrow" style="margin-left:6px;font-size:10px;color:#9ca3af">▼</span>
             </div>
           </div>
           <span style="color:#7dd3fc;font-weight:700;font-size:15px">${pPts}</span>
         </div>
         <div class="player-matches" style="display:none;padding:10px">
-          <div style="font-size:10px;color:black;margin-bottom:6px">MATCH-BY-MATCH POINTS</div>
+          <div style="font-size:11px;font-weight:800;color:var(--acc);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">📅 Match-by-Match History</div>
           <table style="width:100%;border-collapse:collapse">
             <thead>
               <tr style="font-size:10px;color:#000;text-transform:uppercase">
@@ -318,7 +314,7 @@ export function toggleStats(row) {
   if (!next) return;
   const open  = next.style.display === 'block';
   next.style.display = open ? 'none' : 'block';
-  const arrow = row.querySelector('span:last-child');
+  const arrow = row.querySelector('.toggle-arrow');
   if (arrow) arrow.textContent = open ? '▼' : '▲';
 }
 
@@ -327,6 +323,6 @@ export function togglePlayerMatches(row) {
   if (!box) return;
   const isOpen = box.style.display === 'block';
   box.style.display = isOpen ? 'none' : 'block';
-  const arrow = row.querySelector('span:last-child');
+  const arrow = row.querySelector('.toggle-arrow');
   if (arrow) arrow.textContent = isOpen ? '▼' : '▲';
 }

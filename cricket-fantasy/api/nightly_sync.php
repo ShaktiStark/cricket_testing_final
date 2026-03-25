@@ -63,11 +63,11 @@
   $log[] = date('Y-m-d H:i:s').' — Nightly sync started';
   $log[] = "Today's unscored matches: {$matchesFound}";
 
-  if(!$matchesFound){
-    logRun($pdo, $startTime, 0, 0, 0, []);
-    echo json_encode(['status'=>'success','log'=>$log,'scored'=>0]);
-    exit;
-  }
+if(!$matchesFound){
+  logRun($pdo, $startTime, 0, 0, 0, []);
+  echo json_encode(['status'=>'success','log'=>$log,'scored'=>0]);
+  exit;
+}
 
   // ── Process each match ───────────────────────────────────────────────────────
   foreach($todayMatches as $match){
@@ -191,7 +191,7 @@
       $runs = 0; $balls = 0; $fours = 0; $sixes = 0; $sr = 0; $notout = false; $duck = false;
       $wkts = 0; $maidens = 0; $runsConceded = 0; $ovDec = 0.0; $eco = 0.0;
       $catches = 0; $runouts = 0; $stumpings = 0;
-      $bat = 0; $bowl = 0; $field = 0;
+      $bat = 0; $bowl = 0; $field = 0; $batNeg = 0; $bowlNeg = 0;
       $batFound = false; $bowlFound = false; $fieldFound = false;
 
       foreach($scorecard as $inn){
@@ -210,7 +210,9 @@
           $sr     = isset($b['sr']) ? (float)$b['sr'] : ($balls > 0 ? $runs / $balls * 100 : 0);
           $duck   = $runs === 0 && $balls > 0;
           $notout = str_contains(strtolower($b['dismissal-text'] ?? ''), 'not out');
-          $bat    = calcBat($runs, $balls, $fours, $sixes, $sr, $duck, $notout);
+          $batRes = calcBat($runs, $balls, $fours, $sixes, $sr, $duck, $notout);
+          $bat    = $batRes['pts'];
+          $batNeg = $batRes['neg'];
           $batFound = true;
         }
 
@@ -232,7 +234,7 @@
               $lbwBowled = $lbwMap[$pname] ?? 0;
 
               // 🔥 UPDATED CALL
-              $bowl = calcBowl(
+              $bowlRes = calcBowl(
                 $wkts,
                 $maidens,
                 $runsConceded,
@@ -242,6 +244,8 @@
                 $noballs,
                 $lbwBowled
               );
+              $bowl = $bowlRes['pts'];
+              $bowlNeg = $bowlRes['neg'];
               $bowlFound = true;
             }
 
@@ -302,6 +306,8 @@
           'overs'    => round($ovDec, 2),
           'economy'  => round($eco, 2),
           'maidens'  => $maidens,
+          'wides'    => $wides,
+          'noballs'  => $noballs,
         ],
         'fielding' => [
           'points'    => $field,
@@ -315,7 +321,8 @@
           'milestone'=> 0,
           'mom'      => 0,
           'manual'   => 0,
-        ]
+        ],
+        'negative' => $batNeg + $bowlNeg
       ];
 
       $updateP->execute([
@@ -368,8 +375,9 @@
     return (int)$p[0] + ((int)($p[1] ?? 0)) / 6;
   }
 
-  function calcBat(int $r, int $b, int $fs, int $ss, float $sr, bool $duck, bool $no): int {
+  function calcBat(int $r, int $b, int $fs, int $ss, float $sr, bool $duck, bool $no): array {
     $J = $duck ? -10 : $r;
+    $neg = $duck ? -10 : 0;
     $K = 0;
     foreach([25, 50, 75, 100, 125, 150, 175, 200] as $t){
       if($r >= $t) $K += 25;
@@ -388,8 +396,9 @@
     else                $L = 100;
 
     $M          = ($r > 20 || $b >= 10) ? $L : 0;
+    if ($M < 0) $neg += $M;
     $notOutBonus = $no ? 10 : 0;
-    return $J + $K + $M + ($fs * 1) + ($ss * 2) + $notOutBonus;
+    return ['pts' => $J + $K + $M + ($fs * 1) + ($ss * 2) + $notOutBonus, 'neg' => $neg];
   }
 
   function calcBowl(
@@ -401,9 +410,10 @@
     int $wd = 0,
     int $nb = 0,
     int $lbw = 0
-  ): int {
+  ): array {
 
     $pts = $w * 25;
+    $neg = 0;
 
     if($w >= 8)      $pts += 175;
     elseif($w === 7) $pts += 150;
@@ -421,18 +431,17 @@
       elseif($eco < 6)    $pts += 20;
       elseif($eco < 8)    $pts += 10;
       elseif($eco <= 10)  $pts += 0;
-      elseif($eco > 16)   $pts -= 60;
-      elseif($eco > 14)   $pts -= 40;
-      elseif($eco > 12)   $pts -= 20;
-      elseif($eco > 10)   $pts -= 10;
+      elseif($eco > 16)   { $pts -= 60; $neg -= 60; }
+      elseif($eco > 14)   { $pts -= 40; $neg -= 40; }
+      elseif($eco > 12)   { $pts -= 20; $neg -= 20; }
+      elseif($eco > 10)   { $pts -= 10; $neg -= 10; }
     }
 
-    // 🔥 NEW (MATCH JS)
-    $pts -= ($wd * 1);
-    $pts -= ($nb * 2);
-    $pts += ($lbw * 8);
+    $pts -= ($wd + $nb) * 2;
+    $neg -= ($wd + $nb) * 2;
+    $pts += ($lbw * 10);
 
-    return $pts;
+    return ['pts' => $pts, 'neg' => $neg];
   }
 
   function logRun(PDO $pdo, DateTime $s, int $f, int $sc, int $h, array $e): void {

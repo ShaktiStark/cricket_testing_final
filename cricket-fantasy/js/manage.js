@@ -11,7 +11,7 @@ import { escHtml, escAttr, norm, toast, makeId } from './utils.js';
 import { normalizeScorecard }            from './utils.js';
 import { applyMatch }                    from './scoring.js';
 import { updateTournament }              from './tournament.js';
-import { renderLeaderboard }             from './leaderboard.js';
+import { renderLeaderboard, playerTotalWithCap }             from './leaderboard.js';
 import { renderMatchesList, renderFantasyPoints } from './matches.js';
 import { renderSubCaptain }              from './captain.js';
 
@@ -508,7 +508,7 @@ export function renderSubManual(t) {
   <div class="card mb-14">
     <div class="lbl">🎯 Player Bonus / Penalty</div>
     <div class="txt-dim fs-12" style="margin:8px 0 14px;line-height:1.6">Apply extra points (positive or negative) to a specific player.</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="grid-2 mb-12">
       <div>
         <div class="lbl fs-11">Player</div>
         <select class="inp" id="manual-player" style="margin-top:6px">${players}</select>
@@ -520,7 +520,7 @@ export function renderSubManual(t) {
         </select>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+    <div class="grid-3 mb-14">
       <div>
         <div class="lbl fs-11">Preset</div>
         <select class="inp" id="manual-type" style="margin-top:6px" onchange="fillManualPreset()">
@@ -558,7 +558,7 @@ export function renderSubManual(t) {
   <div class="card">
     <div class="lbl">🎖 Tournament Awards</div>
     <div class="txt-dim fs-12" style="margin:8px 0 14px">Seasonal awards (+200 pts each).</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="grid-2 mb-12">
       <div>
         <div class="lbl fs-11">Player</div>
         <select class="inp" id="award-player" style="margin-top:6px">${players}</select>
@@ -775,7 +775,7 @@ export function updateInjuryPlayers() {
   const ps = document.getElementById('inj-player');
   ps.innerHTML = '<option value="">— Select player —</option>' +
     (team.players || []).filter(p => !p.isInjured).map(p =>
-      `<option value="${p.id}">${escHtml(p.name)} (${p.totalPoints || 0} pts)</option>`
+      `<option value="${p.id}">${escHtml(p.name)} (${playerTotalWithCap(p, t) || 0} pts)</option>`
     ).join('');
   [pb, rb].forEach(el => el && (el.style.display = 'block'));
   if (sb) sb.style.display = 'none';

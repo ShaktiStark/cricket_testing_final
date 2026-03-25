@@ -2,7 +2,7 @@
 // MATCHES — match list, detail view, fantasy points
 // ═══════════════════════════════════════════════════
 import { state, getTournament } from './state.js';
-import { escHtml }              from './utils.js';
+import { escHtml, escAttr }              from './utils.js';
 import { getWeekKeyFromMatch, weekKey } from './week.js';
 import { loadTournamentsFromServer } from './api.js';
 
@@ -163,7 +163,7 @@ export function renderFantasyPoints(matchId) {
 
   const teamsSorted = (t.teams || [])
     .map(team => {
-      const active = (team.players || []).filter(p => p.matchPoints && p.matchPoints[String(matchId)] !== undefined);
+      const active = (team.players || []).filter(p => !p.isInjured && p.matchPoints && p.matchPoints[String(matchId)] !== undefined);
       const total  = active.reduce((s, p) => {
         const mp = p.matchPoints[String(matchId)] || {};
         const base       = (mp.batting?.points  || 0) + (mp.bowling?.points  || 0) + (mp.fielding?.points || 0)
@@ -210,15 +210,15 @@ const mb = b.matchPoints[String(matchId)] || {};
           <div class="flex gap-10 player-row"
                onclick="toggleStats(this)"
                style="padding:8px 0;border-bottom:1px solid var(--bdr);cursor:pointer;align-items:center">
-            ${p.playerImg ? `<img src="${escAttr(p.playerImg)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--bdr);flex-shrink:0"/>` : ''}
+            <img src="${p.playerImg ? escAttr(p.playerImg) : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=e2e8f0&color=64748b&bold=true`}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=e2e8f0&color=64748b&bold=true'" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--bdr);flex-shrink:0"/>
             <div class="flex-1">
               <div class="fw-600 txt-main" style="display:flex;align-items:center;flex-wrap:wrap">
                 ${escHtml(p.name)}
                 ${p.role ? `<span style="font-size:10px;color:var(--dim);margin-left:6px;font-weight:600">· ${escHtml(p.role)}</span>` : ''}
                 ${isCaptain ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:6px;background:rgba(251,191,36,.2);color:#fbbf24;border:1px solid rgba(251,191,36,.4)">C</span><span style="font-size:11px;color:#fbbf24;font-weight:700;margin-left:3px">×2</span>` : isVC ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:6px;background:rgba(139,92,246,.2);color:#a78bfa;border:1px solid rgba(139,92,246,.35)">VC</span><span style="font-size:11px;color:#a78bfa;font-weight:700;margin-left:3px">×1.5</span>` : ''}
-                <span style="margin-left:6px;font-size:10px;color:#9ca3af">▼</span>
+                <span class="toggle-arrow" style="margin-left:6px;font-size:10px;color:#9ca3af">▼</span>
+                <span class="fs-11 txt-dim" style="margin-left:10px;white-space:nowrap">🏏 ${mp.batting?.points||0} · 🎳 ${mp.bowling?.points||0} · 🧤 ${mp.fielding?.points||0}${mp.negative < 0 ? ` · <span style="color:var(--err)">📉 ${mp.negative}</span>` : ''}</span>
               </div>
-              <div class="fs-11 txt-dim">🏏 ${mp.batting?.points||0} · 🎳 ${mp.bowling?.points||0} · 🧤 ${mp.fielding?.points||0}</div>
             </div>
             <div style="text-align:right;flex-shrink:0">
               ${multiplier > 1
@@ -233,7 +233,29 @@ const mb = b.matchPoints[String(matchId)] || {};
               <table class="stat-table">
                 <tr><td>Runs</td><td class="txt-acc fw-700">${mp.batting?.runs || 0}</td></tr>
                 <tr><td>Balls</td><td class="txt-acc fw-700">${mp.batting?.balls || 0}</td></tr>
+                <tr><td>4s / 6s</td><td class="txt-acc fw-700">${mp.batting?.fours || 0} / ${mp.batting?.sixes || 0}</td></tr>
                 <tr><td>Strike Rate</td><td class="txt-acc fw-700">${mp.batting?.strikeRate || 0}</td></tr>
+                ${(() => {
+                  if (!mp.batting) return '';
+                  let K=0, r=mp.batting.runs||0;
+                  if(r>=25)K+=25; if(r>=50)K+=50; if(r>=75)K+=75; if(r>=100)K+=100; if(r>=125)K+=125; if(r>=150)K+=150; if(r>=200)K+=200;
+                  let L=0, sr=mp.batting.strikeRate||0;
+                  if(sr<50)L=-60; else if(sr<75)L=-40; else if(sr<100)L=-20; else if(sr<125)L=-10;
+                  else if(sr<=150)L=0; else if(sr<=175)L=10; else if(sr<=200)L=20; else if(sr<=250)L=40; else if(sr<=300)L=60; else if(sr<=350)L=80; else L=100;
+                  const M = (r > 20 || (mp.batting.balls||0) >= 10) ? L : 0;
+                  const base = r + K + M + (mp.batting.fours||0) + (mp.batting.sixes||0)*2;
+                  return (mp.batting.points >= base + 10 && !(r===0 && mp.batting.balls>0)) ? `<tr><td class="txt-acc" style="font-size:11px">Not Out Bonus</td><td class="txt-acc fw-700">+10</td></tr>` : '';
+                })()}
+                ${(mp.batting?.runs === 0 && mp.batting?.balls > 0) ? `<tr><td class="txt-err">Duck Penalty</td><td class="txt-err fw-700">-10</td></tr>` : ''}
+                ${(() => {
+                  const sr = mp.batting?.strikeRate || 0;
+                  const active = (mp.batting?.runs > 20 || mp.batting?.balls >= 10);
+                  let p = 0;
+                  if (active) {
+                    if (sr < 50) p=-60; else if (sr < 75) p=-40; else if (sr < 100) p=-20; else if (sr < 125) p=-10;
+                  }
+                  return p < 0 ? `<tr><td class="txt-err">SR Penalty</td><td class="txt-err fw-700">${p}</td></tr>` : '';
+                })()}
                 <tr><td class="txt-acc fw-700">Points</td><td class="txt-acc fw-700">${mp.batting?.points || 0}</td></tr>
               </table>
             </div>
@@ -244,6 +266,28 @@ const mb = b.matchPoints[String(matchId)] || {};
                 <tr><td>Wickets</td><td class="txt-acc fw-700">${mp.bowling?.wickets || 0}</td></tr>
                 <tr><td>Overs</td><td class="txt-acc fw-700">${mp.bowling?.overs || 0}</td></tr>
                 <tr><td>Economy</td><td class="txt-acc fw-700">${mp.bowling?.economy || 0}</td></tr>
+                ${((mp.bowling?.wides > 0 || mp.bowling?.noballs > 0) ? `<tr><td class="txt-err" style="font-size:11px">Wides / N.B. <span class="fs-10">(${mp.bowling.wides||0}w, ${mp.bowling.noballs||0}nb)</span></td><td class="txt-err fw-700">-${(mp.bowling.wides||0)*2 + (mp.bowling.noballs||0)*2}</td></tr>` : '')}
+                ${(() => {
+                  if (!mp.bowling || mp.bowling.wides !== undefined || mp.bowling.noballs !== undefined) return '';
+                  let pts = (mp.bowling.wickets||0)*25, w = mp.bowling.wickets||0;
+                  if(w>=8)pts+=175; else if(w===7)pts+=150; else if(w===6)pts+=125; else if(w===5)pts+=100; else if(w===4)pts+=75; else if(w===3)pts+=50;
+                  let eco=mp.bowling.economy||0, ov=mp.bowling.overs||0;
+                  if (ov >= 2) {
+                    if(eco<1)pts+=120; else if(eco<2)pts+=80; else if(eco<4)pts+=40; else if(eco<6)pts+=20; else if(eco<8)pts+=10; else if(eco<=10)pts+=0;
+                    else if(eco>16)pts-=60; else if(eco>14)pts-=40; else if(eco>12)pts-=20; else if(eco>10)pts-=10;
+                  }
+                  const diff = mp.bowling.points - pts;
+                  return diff < 0 ? `<tr><td class="txt-err" style="font-size:11px">Extras Penalty (w/nb)</td><td class="txt-err fw-700">${diff}</td></tr>` : '';
+                })()}
+                ${(() => {
+                  const eco = mp.bowling?.economy || 0;
+                  const ov  = mp.bowling?.overs || 0;
+                  let p = 0;
+                  if (ov >= 2) {
+                    if (eco > 16) p=-60; else if (eco > 14) p=-40; else if (eco > 12) p=-20; else if (eco > 10) p=-10;
+                  }
+                  return p < 0 ? `<tr><td class="txt-err">Economy Penalty</td><td class="txt-err fw-700">${p}</td></tr>` : '';
+                })()}
                 <tr><td class="txt-acc fw-700">Points</td><td class="txt-acc fw-700">${mp.bowling?.points || 0}</td></tr>
               </table>
             </div>

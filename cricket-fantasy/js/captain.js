@@ -152,7 +152,7 @@ export function saveCaptain() {
       [wkKey]: { ...((t.weeklyCaptains || {})[wkKey] || {}), [teamId]: { captain: capId, vc: vcId } }
     }
   };
-  updateTournament(updated);
+  updateTournament(updated, true);
   _onCaptainSaved();
   toast(`✅ ${cap?.name || 'Captain'} (C) · ${vc?.name || 'VC'} — Week ${weekLabel(wkKey)}`);
 }

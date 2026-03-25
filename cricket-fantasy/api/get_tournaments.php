@@ -44,7 +44,10 @@ try{
 
     foreach($teams as &$tm){
       $stmt3 = $pdo->prepare(
-        'SELECT * FROM players WHERE team_id=? ORDER BY id ASC'
+        "SELECT p.*, kp.player_img
+         FROM players p
+         LEFT JOIN known_players kp ON kp.name_normalized = LOWER(REPLACE(REPLACE(REPLACE(p.name, ' ', ''), '.', ''), '-', ''))
+         WHERE p.team_id=? ORDER BY p.id ASC"
       );
       $stmt3->execute([$tm['id']]);
       $players = $stmt3->fetchAll();
@@ -83,6 +86,8 @@ try{
         unset($p['player_info']);
 
         $p['price'] = (float)($p['price'] ?? 0);
+        $p['playerImg'] = $p['player_img'] ?? '';
+        unset($p['player_img']);
 
         // 🔥 IMPORTANT: IDs as string
         $p['id'] = (string)$p['id'];
