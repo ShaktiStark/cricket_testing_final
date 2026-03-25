@@ -189,46 +189,35 @@ $lbwMap = buildLbwMap($scorecard);
       }
 
       // ── Bowling ──────────────────────────────────────────────────────────
-      foreach(($inn['bowling'] ?? []) as $bw){
-        $bn = normName($bw['bowler']['name'] ?? $bw['name'] ?? '');
-        if($bn !== $pname) continue;
 
-        $wkts         = (int)($bw['w'] ?? 0);
-        $maidens      = (int)($bw['m'] ?? 0);
-        $runsConceded = (int)($bw['r'] ?? 0);
-        $ovDec        = parseOvers((string)($bw['o'] ?? '0'));
-        $eco          = isset($bw['eco']) ? (float)$bw['eco'] : ($ovDec > 0 ? $runsConceded / $ovDec : 0);
         foreach(($inn['bowling'] ?? []) as $bw){
-  $bn = normName($bw['bowler']['name'] ?? $bw['name'] ?? '');
-  if($bn !== $pname) continue;
+            $bn = normName($bw['bowler']['name'] ?? $bw['name'] ?? '');
+            if($bn !== $pname) continue;
 
-  $wkts         = (int)($bw['w'] ?? 0);
-  $maidens      = (int)($bw['m'] ?? 0);
-  $runsConceded = (int)($bw['r'] ?? 0);
-  $ovDec        = parseOvers((string)($bw['o'] ?? '0'));
-  $eco          = isset($bw['eco']) ? (float)$bw['eco'] : ($ovDec > 0 ? $runsConceded / $ovDec : 0);
+            $wkts         = (int)($bw['w'] ?? 0);
+            $maidens      = (int)($bw['m'] ?? 0);
+            $runsConceded = (int)($bw['r'] ?? 0);
+            $ovDec        = parseOvers((string)($bw['o'] ?? '0'));
+            $eco          = isset($bw['eco']) ? (float)$bw['eco'] : ($ovDec > 0 ? $runsConceded / $ovDec : 0);
 
-  // 🔥 ADD THESE 3 LINES
-  $wides   = (int)($bw['wd'] ?? 0);
-  $noballs = (int)($bw['nb'] ?? 0);
-  $lbwBowled = $lbwMap[$pname] ?? 0;
+            // 🔥 ADD THESE 3 LINES
+            $wides   = (int)($bw['wd'] ?? 0);
+            $noballs = (int)($bw['nb'] ?? 0);
+            $lbwBowled = $lbwMap[$pname] ?? 0;
 
-  // 🔥 UPDATED CALL
-  $bowl = calcBowl(
-    $wkts,
-    $maidens,
-    $runsConceded,
-    $ovDec,
-    $eco,
-    $wides,
-    $noballs,
-    $lbwBowled
-  );
-
-  $bowlFound = true;
-}
-        $bowlFound    = true;
-      }
+            // 🔥 UPDATED CALL
+            $bowl = calcBowl(
+              $wkts,
+              $maidens,
+              $runsConceded,
+              $ovDec,
+              $eco,
+              $wides,
+              $noballs,
+              $lbwBowled
+            );
+            $bowlFound = true;
+          }
 
       // ── Fielding ─────────────────────────────────────────────────────────
       foreach(($inn['catching'] ?? []) as $c){
