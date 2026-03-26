@@ -7,7 +7,7 @@ import { API_BASE } from './config.js';
 // ── Load all tournaments from DB ──────────────────
 export async function loadTournamentsFromServer() {
   try {
-    const res = await fetch('api/get_tournaments.php');
+    const res = await fetch(`api/get_tournaments.php?t=${Date.now()}`, { cache: 'no-store' });
     const j   = await res.json();
 
     if (j && j.status === 'success' && Array.isArray(j.data)) {
@@ -83,11 +83,11 @@ export async function apiManualPoints(payload) {
   return res.json();
 }
 
-export async function apiFetchSeriesMatches(tournamentId, seriesId, apiKey) {
+export async function apiFetchSeriesMatches(tournamentId, seriesId) {
   const res = await fetch(`${API_BASE}fetch_series_matches.php`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ tournament_id: tournamentId, series_id: seriesId, api_key: apiKey })
+    body:    JSON.stringify({ tournament_id: tournamentId, series_id: seriesId })
   });
   return res.json();
 }

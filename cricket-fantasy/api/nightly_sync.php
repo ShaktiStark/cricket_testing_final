@@ -37,10 +37,12 @@
   $startTime     = new DateTime();
 
   // ── Scorecard API key ────────────────────────────────────────────────────────
-  $keyRow = $pdo->query("SELECT api_key FROM api_keys WHERE label='scorecard' LIMIT 1")->fetch();
-  $apiKey = $keyRow['api_key'] ?? '';
+  $envFile = __DIR__ . '/.env';
+  $env = file_exists($envFile) ? parse_ini_file($envFile) : [];
+  $apiKey = $env['CRICAPI_SCORECARD_KEY'] ?? '';
+
   if(!$apiKey){
-    echo json_encode(['status'=>'failure','reason'=>'No scorecard API key in api_keys table']);
+    echo json_encode(['status'=>'failure','reason'=>'No scorecard API key in .env file']);
     exit;
   }
 
@@ -208,8 +210,8 @@ if(!$matchesFound){
           $fours  = (int)($b['4s']  ?? 0);
           $sixes  = (int)($b['6s']  ?? 0);
           $sr     = isset($b['sr']) ? (float)$b['sr'] : ($balls > 0 ? $runs / $balls * 100 : 0);
-          $duck   = $runs === 0 && $balls > 0;
           $notout = str_contains(strtolower($b['dismissal-text'] ?? ''), 'not out');
+          $duck   = $runs === 0 && $balls > 0 && !$notout;
           $batRes = calcBat($runs, $balls, $fours, $sixes, $sr, $duck, $notout);
           $bat    = $batRes['pts'];
           $batNeg = $batRes['neg'];

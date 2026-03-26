@@ -66,9 +66,6 @@ export function isSamePlayer(a, b) {
   // last name match + first initial match
   if (la === lb && pa[0][0] === pb[0][0]) return true;
 
-  // last name strong match
-  if (la === lb && la.length > 3) return true;
-
   return false;
 }
 

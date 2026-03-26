@@ -2,13 +2,27 @@
 
 header('Content-Type: application/json');
 
-// 🔥 GET API KEY FROM FRONTEND (fallback to default)
-$API_KEY = $_GET['apikey'] ?? "2bd89ac8-389f-4b4c-8ded-8b50fc6dc179";
+// 🔥 GET API KEY FROM .ENV FILE
+$envFile = __DIR__ . '/.env';
+$env = file_exists($envFile) ? parse_ini_file($envFile) : [];
 
 // Params
 $type   = $_GET['type']   ?? '';
 $id     = $_GET['id']     ?? '';
 $search = $_GET['search'] ?? '';
+
+// Determine which key to use based on the fetch type
+$apiKeyMap = [
+    'series'    => $env['CRICAPI_SERIES_KEY'] ?? '',
+    'scorecard' => $env['CRICAPI_SCORECARD_KEY'] ?? '',
+    'players'   => $env['CRICAPI_PLAYERS_KEY'] ?? ''
+];
+$API_KEY = $apiKeyMap[$type] ?? '';
+
+if (!$API_KEY) {
+    echo json_encode(["status"=>"error","reason"=>"API Key mapping missing for type: $type"]);
+    exit;
+}
 
 // Validate
 if (!$type) {

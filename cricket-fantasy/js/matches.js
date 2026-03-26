@@ -16,13 +16,23 @@ export function renderMatchesList(t) {
     return;
   }
 
-  const statusOrder = { live: 0, upcoming: 1, completed: 2 };
-const sorted = [...matches].sort((a, b) => {
-  const sa = statusOrder[a.status] ?? 1;
-  const sb = statusOrder[b.status] ?? 1;
-  if (sa !== sb) return sa - sb;
-  return new Date(a.date || 0) - new Date(b.date || 0);
-});
+  const sorted = [...matches].sort((a, b) => {
+    // 1: Live (Top), 2: Completed, 3: Upcoming (Bottom)
+    const statusOrder = { live: 0, completed: 1, upcoming: 2 };
+    const sa = statusOrder[a.status] ?? 2;
+    const sb = statusOrder[b.status] ?? 2;
+    
+    if (sa !== sb) return sa - sb; // Group by status
+    
+    const tA = new Date(a.date || 0).getTime();
+    const tB = new Date(b.date || 0).getTime();
+    
+    // Completed: Sort descending (most recently finished at top)
+    if (sa === 1) return tB - tA;
+    
+    // Live & Upcoming: Sort ascending (happening soonest at top)
+    return tA - tB;
+  });
 
   el.innerHTML = sorted.map(m => {
     const ti       = m.teamInfo || [];
@@ -217,7 +227,7 @@ const mb = b.matchPoints[String(matchId)] || {};
                 ${p.role ? `<span style="font-size:10px;color:var(--dim);margin-left:6px;font-weight:600">· ${escHtml(p.role)}</span>` : ''}
                 ${isCaptain ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:6px;background:rgba(251,191,36,.2);color:#fbbf24;border:1px solid rgba(251,191,36,.4)">C</span><span style="font-size:11px;color:#fbbf24;font-weight:700;margin-left:3px">×2</span>` : isVC ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:6px;background:rgba(139,92,246,.2);color:#a78bfa;border:1px solid rgba(139,92,246,.35)">VC</span><span style="font-size:11px;color:#a78bfa;font-weight:700;margin-left:3px">×1.5</span>` : ''}
                 <span class="toggle-arrow" style="margin-left:6px;font-size:10px;color:#9ca3af">▼</span>
-                <span class="fs-11 txt-dim" style="margin-left:10px;white-space:nowrap">🏏 ${mp.batting?.points||0} · 🎳 ${mp.bowling?.points||0} · 🧤 ${mp.fielding?.points||0}${mp.negative < 0 ? ` · <span style="color:var(--err)">📉 ${mp.negative}</span>` : ''}</span>
+                <span style="font-size:12px;color:#fff;font-weight:700;margin-left:12px;white-space:nowrap;letter-spacing:0.3px">🏏 ${mp.batting?.points||0} &nbsp;·&nbsp; ⚾ ${mp.bowling?.points||0} &nbsp;·&nbsp; 🧤 ${mp.fielding?.points||0}${mp.negative < 0 ? ` &nbsp;·&nbsp; <span style="color:#ef4444">📉 ${mp.negative}</span>` : ''}</span>
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
@@ -244,9 +254,16 @@ const mb = b.matchPoints[String(matchId)] || {};
                   else if(sr<=150)L=0; else if(sr<=175)L=10; else if(sr<=200)L=20; else if(sr<=250)L=40; else if(sr<=300)L=60; else if(sr<=350)L=80; else L=100;
                   const M = (r > 20 || (mp.batting.balls||0) >= 10) ? L : 0;
                   const base = r + K + M + (mp.batting.fours||0) + (mp.batting.sixes||0)*2;
-                  return (mp.batting.points >= base + 10 && !(r===0 && mp.batting.balls>0)) ? `<tr><td class="txt-acc" style="font-size:11px">Not Out Bonus</td><td class="txt-acc fw-700">+10</td></tr>` : '';
+                  
+                  // Reverse engineer the backend's decision
+                  const isNotOut = (mp.batting.points === base + 10);
+                  const isDuck   = (mp.batting.points === base - 10 && r === 0 && (mp.batting.balls||0) > 0);
+
+                  let html = '';
+                  if (isNotOut) html += `<tr><td class="txt-acc" style="font-size:11px">Not Out Bonus</td><td class="txt-acc fw-700">+10</td></tr>`;
+                  if (isDuck)   html += `<tr><td class="txt-err">Duck Penalty</td><td class="txt-err fw-700">-10</td></tr>`;
+                  return html;
                 })()}
-                ${(mp.batting?.runs === 0 && mp.batting?.balls > 0) ? `<tr><td class="txt-err">Duck Penalty</td><td class="txt-err fw-700">-10</td></tr>` : ''}
                 ${(() => {
                   const sr = mp.batting?.strikeRate || 0;
                   const active = (mp.batting?.runs > 20 || mp.batting?.balls >= 10);
@@ -261,7 +278,7 @@ const mb = b.matchPoints[String(matchId)] || {};
             </div>
 
             <div class="stat-block">
-              <div class="fw-700 txt-main mb-6">🎳 Bowling</div>
+              <div class="fw-700 txt-main mb-6">⚾ Bowling</div>
               <table class="stat-table">
                 <tr><td>Wickets</td><td class="txt-acc fw-700">${mp.bowling?.wickets || 0}</td></tr>
                 <tr><td>Overs</td><td class="txt-acc fw-700">${mp.bowling?.overs || 0}</td></tr>

@@ -21,10 +21,12 @@ if(!$tCheck->fetch()){
   echo json_encode(['status'=>'failure','reason'=>'Tournament not found']); exit;
 }
 
-// Get API key
-$keyRow = $pdo->query("SELECT api_key FROM api_keys WHERE label='series_fetch' LIMIT 1")->fetch();
-$apiKey = $body['api_key'] ?? ($keyRow['api_key'] ?? '');
-if(!$apiKey){ echo json_encode(['status'=>'failure','reason'=>'No API key']); exit; }
+// Get API key from .env
+$envFile = __DIR__ . '/.env';
+$env = file_exists($envFile) ? parse_ini_file($envFile) : [];
+$apiKey = $env['CRICAPI_SERIES_KEY'] ?? '';
+
+if(!$apiKey){ echo json_encode(['status'=>'failure','reason'=>'No API key in .env file']); exit; }
 
 // Call series_info
 $url = "https://api.cricapi.com/v1/series_info?apikey=".urlencode($apiKey)."&id=".urlencode($seriesId)."&offset=0";

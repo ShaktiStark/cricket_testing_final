@@ -29,8 +29,9 @@ if($row && !empty($row['scorecard_raw'])){
 }
 
 // Not cached — fetch live
-$keyRow = $pdo->query("SELECT api_key FROM api_keys WHERE label='scorecard' LIMIT 1")->fetch();
-$apiKey = $_GET['api_key'] ?? ($keyRow['api_key'] ?? '');
+$envFile = __DIR__ . '/.env';
+$env = file_exists($envFile) ? parse_ini_file($envFile) : [];
+$apiKey = $_GET['api_key'] ?? ($env['CRICAPI_SCORECARD_KEY'] ?? '');
 if(!$apiKey){ http_response_code(400); echo json_encode(['status'=>'failure','reason'=>'No scorecard API key']); exit; }
 
 $url = "https://api.cricapi.com/v1/match_scorecard?apikey=".urlencode($apiKey)."&id=".urlencode($matchId);

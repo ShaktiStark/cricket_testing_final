@@ -47,35 +47,9 @@ export function renderSubScores(t) {
   const scored     = allMatches.filter(m => m.isScored).length;
   const unscored   = allMatches.filter(m => !m.isScored && m.status === 'completed').length;
 
-  const keyCard = `
-    <div class="card mb-14" style="border:1px solid var(--bdra)">
-      <div class="lbl" style="margin-bottom:10px">🔑 API Keys <span class="txt-dim fs-11">(stored locally)</span></div>
-      <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center">
-        <span class="fs-12 txt-dim">Series fetch</span>
-        <input id="ak-series"    class="inp" style="font-family:monospace;font-size:12px" value="${escHtml(getApiKey('series'))}"    placeholder="Key for series_info"/>
-        <span class="fs-12 txt-dim">Scorecards</span>
-        <input id="ak-scorecard" class="inp" style="font-family:monospace;font-size:12px" value="${escHtml(getApiKey('scorecard'))}" placeholder="Key for match_scorecard"/>
-        <span class="fs-12 txt-dim">Players</span>
-        <input id="ak-players"   class="inp" style="font-family:monospace;font-size:12px" value="${escHtml(getApiKey('players'))}"   placeholder="Key for player search"/>
-      </div>
-      <button class="btn btn-ghost" style="margin-top:10px;font-size:12px" onclick="saveApiKeysFromUI()">💾 Save Keys</button>
-      <div class="fs-11 txt-dim" style="margin-top:6px">Each key has 100 hits/day. Use separate keys to get 300 total hits.</div>
-    </div>`;
-
-  const syncProfileCard = `
-    <div class="card mb-14" style="border-left:3px solid var(--ok)">
-      <div class="lbl">✨ Sync Player Profiles (Retrospective)</div>
-      <div class="txt-dim fs-12" style="margin:8px 0 14px;line-height:1.4">
-        Your current tournament was created before player images were added. Click this button to scan the database and attach all available headshots and roles to your existing players <b>immediately</b>!
-      </div>
-      <button class="btn" style="background:rgba(52,211,153,.15);color:var(--ok);border:1px solid rgba(52,211,153,.35)" onclick="window.syncMissingProfiles()">🔄 Sync Profiles Now</button>
-      <div id="sync-profile-msg" style="margin-top:10px;font-size:12px;font-weight:600"></div>
-    </div>
-  `;
+  const keyCard = '';
 
   el.innerHTML = `
-    ${keyCard}
-    ${syncProfileCard}
     <div class="card mb-14">
       <div class="lbl">📋 Step 1 — Fetch Match Schedule</div>
       <div class="txt-dim fs-12" style="margin:8px 0 14px;line-height:1.6">
@@ -209,7 +183,7 @@ export async function fetchSeriesMatches() {
   addScoreLog('📡 Fetching match schedule from series_info… (1 API hit)');
 
   try {
-    const j = await apiFetchSeriesMatches(t.id, sid, getApiKey('series'));
+    const j = await apiFetchSeriesMatches(t.id, sid);
     if (j.status === 'success') {
       addScoreLog(`✅ "${j.series_name}" — ${j.total} matches in series`, 'var(--ok)');
       addScoreLog(`📥 New: ${j.new} added · Already in DB: ${j.existing}`, 'var(--acc)');
@@ -334,7 +308,7 @@ export async function fetchScores() {
   addScoreLog('📡 Fetching series info… (1 API hit)');
   let seriesData;
   try {
-    const res  = await fetch(`api/cric_proxy.php?type=series&id=${sid}&apikey=${getApiKey('series')}`);
+    const res  = await fetch(`api/cric_proxy.php?type=series&id=${sid}`);
     seriesData = await res.json();
     bumpHits(1);
   } catch (err) { addScoreLog('❌ ' + err.message, 'var(--err)'); return; }
@@ -410,7 +384,7 @@ export async function fetchScores() {
     if (getHits() >= 94) { addScoreLog('⚠️ Hit limit close — stopping.', 'var(--warn)'); break; }
     addScoreLog(`⬇️ ${match.name.split(',')[0]}…`);
     try {
-      const res = await fetch(`api/cric_proxy.php?type=scorecard&id=${match.id}&apikey=${getApiKey('scorecard')}`);
+      const res = await fetch(`api/cric_proxy.php?type=scorecard&id=${match.id}`);
       const sc  = await res.json();
       scorecardHits++;
       bumpHits(1);
@@ -432,11 +406,14 @@ export async function fetchScores() {
           const fieldRows= innings.reduce((s, i) => s + (i.catching || []).length, 0);
           addScoreLog(`✅ ${innings.length} innings · ${batRows} bat · ${bowlRows} bowl · ${fieldRows} field`, 'var(--ok)');
         }
+      } else {
+        addScoreLog(`⚠️ API skipped match: ${sc?.reason || sc?.status || 'Unknown error'}`, 'var(--warn)');
+        console.error("Match API Payload:", sc);
       }
     } catch (e) { scorecardHits++; bumpHits(1); addScoreLog(`❌ ${e.message}`, 'var(--err)'); }
   }
 
-  updateTournament(updated);
+  await updateTournament(updated);
 
   // 🔥 IMPORTANT: reload fresh data from DB
   await loadTournamentsFromServer();
@@ -525,7 +502,7 @@ export function renderSubManual(t) {
         <div class="lbl fs-11">Preset</div>
         <select class="inp" id="manual-type" style="margin-top:6px" onchange="fillManualPreset()">
           <option value="custom">Custom amount</option>
-          <option value="mom">Man of the Match (+100)</option>
+          <option value="mom">Man of the Match (+50)</option>
           <option value="hatrick">Hat-trick (+100)</option>
           <option value="potw">Player of the Week (+150)</option>
           <option value="6s">6 Sixes in over (+100)</option>
@@ -579,7 +556,7 @@ export function renderSubManual(t) {
 }
 
 export function fillManualPreset() {
-  const presets  = { custom: null, mom: 100, hatrick: 100, potw: 150, '6s': 100, '4s': 50, penalty: -50 };
+  const presets  = { custom: null, mom: 50, hatrick: 100, potw: 150, '6s': 100, '4s': 50, penalty: -50 };
   const labels   = { mom: 'Man of the Match', hatrick: 'Hat-trick', potw: 'Player of the Week', '6s': '6 Sixes in over', '4s': '6 Fours in over', penalty: 'Penalty' };
   // Auto-set category for each preset
   const catMap   = { mom: 'mom', hatrick: 'mom', potw: 'mom', '6s': 'mom', '4s': 'mom', penalty: 'bowling', custom: 'bowling' };

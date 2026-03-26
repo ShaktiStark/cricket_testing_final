@@ -4,9 +4,9 @@
 -- ║   ALTER TABLE blocks at the bottom only.                     ║
 -- ╚══════════════════════════════════════════════════════════════╝
 
-CREATE DATABASE IF NOT EXISTS league
+CREATE DATABASE IF NOT EXISTS ptex_cricket
   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-USE league;
+USE ptex_cricket;
 
 -- ── tournaments ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tournaments (
@@ -92,18 +92,6 @@ CREATE TABLE IF NOT EXISTS weekly_captains (
   FOREIGN KEY (team_id)       REFERENCES teams(id)       ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ── api_keys ─────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS api_keys (
-  id      INT AUTO_INCREMENT PRIMARY KEY,
-  label   VARCHAR(100) NOT NULL UNIQUE,
-  api_key TEXT         NOT NULL,
-  notes   VARCHAR(500) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-INSERT IGNORE INTO api_keys (id, label, api_key, notes) VALUES
-  (1, 'series_fetch', 'REPLACE_WITH_YOUR_KEY', '1 hit per Fetch Schedule click'),
-  (2, 'scorecard',    'REPLACE_WITH_YOUR_KEY', '1 hit per match scorecard'),
-  (3, 'players',      'REPLACE_WITH_YOUR_KEY', 'Player search and country backfill');
 
 -- ── nightly_job_log ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS nightly_job_log (

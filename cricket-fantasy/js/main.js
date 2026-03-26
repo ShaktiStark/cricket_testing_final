@@ -28,7 +28,8 @@ import { renderNewTournament, wizNext,
 
 // ── Resolve ───────────────────────────────────────
 import { renderResolve, pickName,
-         resolveConfirm, resolveSkip,setCustomName }   from './resolve.js';
+         dbSearchInput, pickNameFromSearch,
+         resolveConfirm, resolveSkip, setCustomName }  from './resolve.js';
 
 // ── Preview ───────────────────────────────────────
 import { renderPreview, createTournament } from './preview.js';
@@ -120,8 +121,8 @@ Object.assign(window, {
   handleWizFile, handleWizDrop, wizNext,
 
   // resolve
-  pickName, resolveConfirm, resolveSkip,
-  setCustomName,
+  pickName, dbSearchInput, pickNameFromSearch,
+  resolveConfirm, resolveSkip, setCustomName,
 
   // preview
   createTournament,
