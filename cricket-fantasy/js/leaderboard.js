@@ -254,14 +254,17 @@ export function renderLeaderboard(t) {
         total = Math.round(total * mult * 10) / 10;
 
         return `
-          <tr style="border-bottom:1px solid var(--bdr)">
-            <td style="padding:6px 0;font-size:12px;color:#000">${escHtml(m.name || '')}</td>
-            <td style="padding:6px 0;text-align:right;font-size:12px;font-weight:700">
-            ${mult > 1 ? `<span style="color:var(--dim);text-decoration:line-through;margin-right:4px">${Math.round(total / mult * 10) / 10}</span>` : ''}
-            <span style="background:#000;color:#fff;padding:3px 8px;border-radius:999px">
-              ${total > 0 ? '+' : ''}${total}
-            </span>
-          </td>
+          <tr style="border-bottom:1px solid #222;cursor:pointer;background:#000;transition:background .15s"
+              onmouseover="this.style.background='#111'"
+              onmouseout="this.style.background='#000'"
+              onclick="event.stopPropagation();window.switchTab('matches');window.showMatchDetail('${escAttr(m.id)}')">
+            <td style="padding:7px 8px;font-size:12px;color:#fff">${escHtml(m.name || '')}</td>
+            <td style="padding:7px 8px;text-align:right;font-size:12px;font-weight:700;white-space:nowrap">
+              ${mult > 1 ? `<span style="color:#888;text-decoration:line-through;margin-right:4px">${Math.round(total / mult * 10) / 10}</span>` : ''}
+              <span style="background:#fff;color:#000;padding:3px 8px;border-radius:999px;font-weight:800">
+                ${total > 0 ? '+' : ''}${total}
+              </span>
+            </td>
           </tr>`;
       }).join('');
 
@@ -291,23 +294,22 @@ export function renderLeaderboard(t) {
             📅 Match-by-Match History
           </div>
 
-          <table style="width:100%;border-collapse:collapse">
-            <thead>
-              <tr style="font-size:10px;color:#000;text-transform:uppercase">
-                <th style="text-align:left">Fixture</th>
-                <th style="text-align:right">Pts</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              ${matchRows
-          ? matchRows
-          : `<tr>
-                    <td colspan="2" style="color:#000;font-size:11px">No points yet</td>
-                  </tr>`
-        }
-            </tbody>
-          </table>
+          <div style="background:#000;border-radius:10px;overflow:hidden;border:1px solid #222">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:7px 8px;font-size:10px;color:#aaa;text-transform:uppercase;background:#000;border-bottom:1px solid #333;font-weight:600">Fixture</th>
+                  <th style="text-align:right;padding:7px 8px;font-size:10px;color:#aaa;text-transform:uppercase;background:#000;border-bottom:1px solid #333;font-weight:600">Pts</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${matchRows
+            ? matchRows
+            : `<tr><td colspan="2" style="color:#666;font-size:11px;padding:8px;background:#000">No points yet</td></tr>`
+          }
+              </tbody>
+            </table>
+          </div>
         </div>
       `;
     }).join('');

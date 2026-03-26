@@ -108,11 +108,28 @@ export function goNewTournament() {
 
 export function deleteTournamentClick(e, id) {
   e.stopPropagation();
-  deleteTournament(id);
+  const btn = e.currentTarget;
+  if (btn.dataset.confirm === 'true') {
+    btn.innerText = 'Deleting...';
+    btn.style.opacity = '0.5';
+    deleteTournament(id);
+  } else {
+    btn.dataset.confirm = 'true';
+    btn.innerText = 'Are you sure?';
+    btn.style.color = '#fff';
+    btn.style.backgroundColor = 'var(--err)';
+    setTimeout(() => {
+      if (btn.innerText === 'Are you sure?') {
+        btn.dataset.confirm = 'false';
+        btn.innerText = 'Delete';
+        btn.style.color = 'red';
+        btn.style.backgroundColor = 'transparent';
+      }
+    }, 3000);
+  }
 }
 
 export async function deleteTournament(id) {
-  if (!confirm('Delete this tournament?')) return;
   try {
     const res = await apiDeleteTournament(id);
     if (res.status === 'success') {

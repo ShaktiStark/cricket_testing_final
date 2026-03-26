@@ -16,5 +16,5 @@ export function getTournament() {
 }
 
 export function saveState() {
-  localStorage.setItem('fantasy_state', JSON.stringify(state));
+  // local storage caching removed
 }

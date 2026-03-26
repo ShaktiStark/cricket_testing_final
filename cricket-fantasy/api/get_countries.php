@@ -1,18 +1,11 @@
 <?php
-// Proxy/cache for CricAPI countries list with flags.
-// Usage: GET api/get_countries.php?apikey=YOUR_KEY[&force=1]
+// Proxy for CricAPI countries list with flags.
+// Usage: GET api/get_countries.php?apikey=YOUR_KEY
 set_time_limit(30);
 header('Content-Type: application/json');
 $apikey = isset($_GET['apikey']) ? $_GET['apikey'] : null;
 if(!$apikey){ http_response_code(400); echo json_encode(['status'=>'failure','reason'=>'apikey required']); exit; }
-$force = isset($_GET['force']) && ($_GET['force']=='1' || $_GET['force']=='true');
-$cacheDir = __DIR__ . '/cache';
-if(!is_dir($cacheDir)) @mkdir($cacheDir, 0755, true);
-$cacheFile = $cacheDir . '/countries.json';
-if(!$force && file_exists($cacheFile)){
-  $txt = @file_get_contents($cacheFile);
-  if($txt){ echo $txt; exit; }
-}
+
 $url = 'https://api.cricapi.com/v1/countries?apikey='.urlencode($apikey).'&offset=0';
 $ctx = stream_context_create(['http'=>['timeout'=>20]]);
 $txt = @file_get_contents($url, false, $ctx);
@@ -33,6 +26,4 @@ if(isset($j['data']) && is_array($j['data'])){
   }
 }
 $out = ['status'=>'success','fetched'=>count($map),'data'=>$map,'raw'=>$j];
-$dump = json_encode($out, JSON_UNESCAPED_SLASHES);
-@file_put_contents($cacheFile, $dump);
-echo $dump;
+echo json_encode($out, JSON_UNESCAPED_SLASHES);
