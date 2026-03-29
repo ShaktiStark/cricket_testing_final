@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS players (
   match_points     JSON         DEFAULT NULL,
   is_injured       TINYINT(1)   DEFAULT 0,
   replaced_for     VARCHAR(255) DEFAULT NULL,
+  active_from_date DATETIME     DEFAULT NULL,
   created_at       BIGINT       DEFAULT 0,
   INDEX idx_team (team_id),
   INDEX idx_team_injured (team_id, is_injured),
@@ -126,7 +127,8 @@ ALTER TABLE players
   ADD COLUMN IF NOT EXISTS country          VARCHAR(100) DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS country_flag_url VARCHAR(512) DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS player_info      JSON         DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS replaced_for     VARCHAR(255) DEFAULT NULL;
+  ADD COLUMN IF NOT EXISTS replaced_for     VARCHAR(255) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS active_from_date DATETIME     DEFAULT NULL;
 
 ALTER TABLE matches
   ADD COLUMN IF NOT EXISTS match_number  INT          DEFAULT NULL,

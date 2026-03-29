@@ -15,8 +15,12 @@ try {
   $stmt = $pdo->query("SELECT * FROM matches WHERE scorecard_raw IS NOT NULL AND scorecard_raw != ''");
   $matches = $stmt->fetchAll();
 
-  // Load all players
-  $pStmt = $pdo->query("SELECT * FROM players");
+  // Load all players including their tournament_id via the teams table
+  $pStmt = $pdo->query("
+    SELECT p.*, t.tournament_id 
+    FROM players p
+    JOIN teams t ON t.id = p.team_id
+  ");
   $allPlayers = $pStmt->fetchAll();
 
   $updateP = $pdo->prepare("
@@ -50,8 +54,19 @@ try {
       $wcMap[$w['team_id']] = ['captain' => (string)$w['captain_id'], 'vc' => (string)$w['vc_id']];
     }
 
+    // Get match date as a timestamp
+    $matchDateTs = strtotime($match['date'] ?? 'now');
+
     foreach($allPlayers as &$p) {
       if ($p['team_id'] == 0) continue; // safety
+
+      // Skip if player belongs to a DIFFERENT tournament than this match
+      if ($p['tournament_id'] != $tid) continue;
+
+      // Skip if this player joined the team AFTER this match was played
+      if (!empty($p['active_from_date']) && strtotime($p['active_from_date']) > $matchDateTs) {
+        continue;
+      }
 
       $pname = normName($p['name']);
       $cricTeam = $p['cricket_team'] ?? '';
@@ -185,7 +200,7 @@ function parseOvers(string $s): float { $p = explode('.', $s); return (int)$p[0]
 function buildLbwMap(array $scorecard): array {
   $m = [];
   foreach($scorecard as $inn) foreach(($inn['batting']??[]) as $b) {
-    if(preg_match('/b\s+([a-z\s]+)/', strtolower($b['dismissal-text']??''), $mat)) {
+    if(preg_match('/^(?:lbw(?:[-\s]+b)?\s+|b\s+)([a-z\s]+)/i', trim($b['dismissal-text']??''), $mat)) {
       $lbw = normName($mat[1]); $m[$lbw] = ($m[$lbw]??0)+1;
     }
   }
@@ -205,5 +220,5 @@ function calcBowl(int $w, int $m, int $r, float $ov, float $eco, int $wd, int $n
   if($ov>=2){
     if($eco<1)$pts+=120;elseif($eco<2)$pts+=80;elseif($eco<4)$pts+=40;elseif($eco<6)$pts+=20;elseif($eco<8)$pts+=10;elseif($eco<=10)$pts+=0;elseif($eco>16){$pts-=60;$neg-=60;}elseif($eco>14){$pts-=40;$neg-=40;}elseif($eco>12){$pts-=20;$neg-=20;}elseif($eco>10){$pts-=10;$neg-=10;}
   }
-  $pts-=($wd+$nb)*2; $neg-=($wd+$nb)*2; $pts+=$lbw*10; return ['pts'=>$pts,'neg'=>$neg];
+  $pts-=($wd+$nb)*2; $neg-=($wd+$nb)*2; $pts+=$lbw*8; return ['pts'=>$pts,'neg'=>$neg];
 }

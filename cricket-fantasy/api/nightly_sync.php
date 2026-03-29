@@ -36,15 +36,8 @@
   $errors        = [];
   $startTime     = new DateTime();
 
-  // ── Scorecard API key ────────────────────────────────────────────────────────
-  $envFile = __DIR__ . '/.env';
-  $env = file_exists($envFile) ? parse_ini_file($envFile) : [];
-  $apiKey = $env['CRICAPI_SCORECARD_KEY'] ?? '';
-
-  if(!$apiKey){
-    echo json_encode(['status'=>'failure','reason'=>'No scorecard API key in .env file']);
-    exit;
-  }
+  // ── Scorecard API key (hardcoded — most reliable for cron jobs) ──────────────
+  $apiKey = 'fe93a081-8ab4-4382-8401-bb49d9c61577';
 
   // ── Find today's unscored matches ────────────────────────────────────────────
   // is_scored = 0 ensures NO match is ever scored twice (duplicate prevention)
@@ -67,7 +60,7 @@
 
 if(!$matchesFound){
   logRun($pdo, $startTime, 0, 0, 0, []);
-  echo json_encode(['status'=>'success','log'=>$log,'scored'=>0]);
+  echo json_encode(['status'=>'success','matches_found'=>0,'matches_scored'=>0,'api_hits_used'=>0,'errors'=>[],'log'=>$log]);
   exit;
 }
 
@@ -127,6 +120,9 @@ if(!$matchesFound){
     $pStmt->execute([$tid]);
     $allPlayers = $pStmt->fetchAll();
 
+    // Match date as timestamp for active_from_date comparison
+    $matchTs = strtotime($match['date'] ?? 'now');
+
     $updateP = $pdo->prepare(
       'UPDATE players
       SET total_points    = ?,
@@ -140,22 +136,6 @@ if(!$matchesFound){
 
     $totalNewPts = 0;
 
-    // 🔥 ADD THIS BLOCK
-  function buildLbwMap($scorecard){
-    $map = [];
-    foreach($scorecard as $inn){
-      foreach(($inn['bowling'] ?? []) as $bw){
-        $name = normName($bw['bowler']['name'] ?? '');
-        if(!$name) continue;
-
-        $lbw = (int)($bw['lbw'] ?? 0);
-        if($lbw > 0){
-          $map[$name] = ($map[$name] ?? 0) + $lbw;
-        }
-      }
-    }
-    return $map;
-  }
 
   $lbwMap = buildLbwMap($scorecard);
 
@@ -188,6 +168,11 @@ if(!$matchesFound){
     foreach($allPlayers as $p){
       $pname    = normName($p['name']);
       $cricTeam = $p['cricket_team'] ?? '';
+
+      // Skip if this player joined the team AFTER this match was played
+      if (!empty($p['active_from_date']) && strtotime($p['active_from_date']) > $matchTs) {
+        continue;
+      }
 
       // ── Raw stats per player ────────────────────────────────────────────────
       $runs = 0; $balls = 0; $fours = 0; $sixes = 0; $sr = 0; $notout = false; $duck = false;
@@ -372,6 +357,19 @@ if(!$matchesFound){
     return preg_replace('/[^a-z]/', '', strtolower($s));
   }
 
+  function buildLbwMap(array $scorecard): array {
+    $map = [];
+    foreach($scorecard as $inn){
+      foreach(($inn['batting'] ?? []) as $b){
+        if(preg_match('/^(?:lbw(?:[-\s]+b)?\s+|b\s+)([a-z\s]+)/i', trim($b['dismissal-text'] ?? ''), $mat)){
+          $lbw = normName($mat[1]);
+          $map[$lbw] = ($map[$lbw] ?? 0) + 1;
+        }
+      }
+    }
+    return $map;
+  }
+
   function parseOvers(string $s): float {
     $p = explode('.', $s);
     return (int)$p[0] + ((int)($p[1] ?? 0)) / 6;
@@ -441,7 +439,7 @@ if(!$matchesFound){
 
     $pts -= ($wd + $nb) * 2;
     $neg -= ($wd + $nb) * 2;
-    $pts += ($lbw * 10);
+    $pts += ($lbw * 8); // +8 standard bonus for LBW / Bowled
 
     return ['pts' => $pts, 'neg' => $neg];
   }

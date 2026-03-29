@@ -226,6 +226,7 @@ const mb = b.matchPoints[String(matchId)] || {};
                 ${escHtml(p.name)}
                 ${p.role ? `<span style="font-size:10px;color:var(--dim);margin-left:6px;font-weight:600">· ${escHtml(p.role)}</span>` : ''}
                 ${isCaptain ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:6px;background:rgba(251,191,36,.2);color:#fbbf24;border:1px solid rgba(251,191,36,.4)">C</span><span style="font-size:11px;color:#fbbf24;font-weight:700;margin-left:3px">×2</span>` : isVC ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:6px;background:rgba(139,92,246,.2);color:#a78bfa;border:1px solid rgba(139,92,246,.35)">VC</span><span style="font-size:11px;color:#a78bfa;font-weight:700;margin-left:3px">×1.5</span>` : ''}
+                ${mp.bonus?.mom > 0 ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:6px;background:rgba(236,72,153,.2);color:#f472b6;border:1px solid rgba(236,72,153,.4)">🏆 MOM</span>` : ''}
                 <span class="toggle-arrow" style="margin-left:6px;font-size:10px;color:#9ca3af">▼</span>
                 <span style="font-size:12px;color:#fff;font-weight:700;margin-left:12px;white-space:nowrap;letter-spacing:0.3px">🏏 ${mp.batting?.points||0} &nbsp;·&nbsp; ⚾ ${mp.bowling?.points||0} &nbsp;·&nbsp; 🧤 ${mp.fielding?.points||0}${mp.negative < 0 ? ` &nbsp;·&nbsp; <span style="color:#ef4444">📉 ${mp.negative}</span>` : ''}</span>
               </div>
@@ -236,125 +237,163 @@ const mb = b.matchPoints[String(matchId)] || {};
                 : `<span class="txt-acc fw-700" style="font-size:15px">${tot}</span>`}
             </div>
           </div>
-          <div class="player-stats" style="display:none;padding:10px 12px;border-bottom:1px solid var(--bdr)">
+          <div class="player-stats" style="display:none;padding:12px;border-bottom:1px solid var(--bdr);background:#111;color:#fff;">
 
-            <div class="stat-block">
-              <div class="fw-700 txt-main mb-6">🏏 Batting</div>
-              <table class="stat-table">
-                <tr><td>Runs</td><td class="txt-acc fw-700">${mp.batting?.runs || 0}</td></tr>
-                <tr><td>Balls</td><td class="txt-acc fw-700">${mp.batting?.balls || 0}</td></tr>
-                <tr><td>4s / 6s</td><td class="txt-acc fw-700">${mp.batting?.fours || 0} / ${mp.batting?.sixes || 0}</td></tr>
-                <tr><td>Strike Rate</td><td class="txt-acc fw-700">${mp.batting?.strikeRate || 0}</td></tr>
+            <div class="stat-block" style="background:#0a0e17; padding:12px; border-radius:10px; margin-bottom:12px; border:1px solid #1e293b;">
+              <div class="fw-700 txt-main mb-6" style="color:#fff;">🏏 Batting</div>
+              <table style="width:100%; table-layout:fixed; border-collapse:collapse; background:transparent;">
+                <colgroup>
+                  <col style="width:45%;">
+                  <col style="width:30%;">
+                  <col style="width:25%;">
+                </colgroup>
                 ${(() => {
-                  if (!mp.batting) return '';
-                  let K=0, r=mp.batting.runs||0;
-                  if(r>=25)K+=25; if(r>=50)K+=50; if(r>=75)K+=75; if(r>=100)K+=100; if(r>=125)K+=125; if(r>=150)K+=150; if(r>=200)K+=200;
-                  let L=0, sr=mp.batting.strikeRate||0;
-                  if(sr<50)L=-60; else if(sr<75)L=-40; else if(sr<100)L=-20; else if(sr<125)L=-10;
-                  else if(sr<=150)L=0; else if(sr<=175)L=10; else if(sr<=200)L=20; else if(sr<=250)L=40; else if(sr<=300)L=60; else if(sr<=350)L=80; else L=100;
-                  const M = (r > 20 || (mp.batting.balls||0) >= 10) ? L : 0;
-                  const base = r + K + M + (mp.batting.fours||0) + (mp.batting.sixes||0)*2;
+                  if (!mp.batting) return `<tr><td colspan="2" style="padding:6px 0;border-bottom:1px solid #1e293b;color:#fff;">Total Pts</td><td class="fw-900 ta-right" style="padding:6px 0;border-bottom:1px solid #1e293b;color:#fff;">0</td></tr>`;
                   
-                  // Reverse engineer the backend's decision
-                  const isNotOut = (mp.batting.points === base + 10);
-                  const isDuck   = (mp.batting.points === base - 10 && r === 0 && (mp.batting.balls||0) > 0);
-
-                  let html = '';
-                  if (isNotOut) html += `<tr><td class="txt-acc" style="font-size:11px">Not Out Bonus</td><td class="txt-acc fw-700">+10</td></tr>`;
-                  if (isDuck)   html += `<tr><td class="txt-err">Duck Penalty</td><td class="txt-err fw-700">-10</td></tr>`;
-                  return html;
+                  let r = mp.batting.runs || 0;
+                  let b = mp.batting.balls || 0;
+                  let f = mp.batting.fours || 0;
+                  let s = mp.batting.sixes || 0;
+                  let sr = mp.batting.strikeRate || 0;
+                  
+                  let K = [200, 150, 125, 100, 75, 50, 25].find(t => r >= t) || 0;
+                  let L = 0;
+                  if (sr < 50) L=-60; else if (sr < 75) L=-40; else if (sr < 100) L=-20; else if (sr < 125) L=-10;
+                  else if (sr <= 150) L=0; else if (sr <= 175) L=10; else if (sr <= 200) L=20; else if (sr <= 250) L=40; else if (sr <= 300) L=60; else if (sr <= 350) L=80; else L=100;
+                  let M = (r > 20 || b >= 10) ? L : 0;
+                  let boundPts = (f * 1) + (s * 2);
+                  let baseCalc = r + K + M + boundPts;
+                  let duck_out = mp.batting.points - baseCalc;
+                  
+                  let txt = '';
+                  txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Runs / Balls</td><td class="txt-acc fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b;">${r} / ${b}</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">${r>0?'+':''}${r}</td></tr>`;
+                  txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">4s / 6s</td><td class="txt-acc fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b;">${f} / ${s}</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">${boundPts>0?'+':''}${boundPts}</td></tr>`;
+                  txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Strike Rate</td><td class="txt-acc fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b;">${sr}</td><td class="fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b; color:${M>0?'#38bdf8':M<0?'#ef4444':'#cbd5e1'}">${M>0?'+':''}${M}</td></tr>`;
+                  
+                  if (K > 0) txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Runs Milestone</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">+${K}</td></tr>`;
+                  if (duck_out === 10) txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Not Out Bonus</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">+10</td></tr>`;
+                  if (duck_out === -10) txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#ef4444;">Duck Penalty</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#ef4444;">-10</td></tr>`;
+                  
+                  txt += `<tr><td colspan="2" class="fw-800" style="padding:8px 0; color:#fff;">Total Pts</td><td class="fw-900 ta-right" style="padding:8px 0; border-bottom:none; font-size:15px; color:#fff;">${mp.batting.points||0}</td></tr>`;
+                  return txt;
                 })()}
-                ${(() => {
-                  const sr = mp.batting?.strikeRate || 0;
-                  const active = (mp.batting?.runs > 20 || mp.batting?.balls >= 10);
-                  let p = 0;
-                  if (active) {
-                    if (sr < 50) p=-60; else if (sr < 75) p=-40; else if (sr < 100) p=-20; else if (sr < 125) p=-10;
-                  }
-                  return p < 0 ? `<tr><td class="txt-err">SR Penalty</td><td class="txt-err fw-700">${p}</td></tr>` : '';
-                })()}
-                <tr><td class="txt-acc fw-700">Points</td><td class="txt-acc fw-700">${mp.batting?.points || 0}</td></tr>
               </table>
             </div>
 
-            <div class="stat-block">
-              <div class="fw-700 txt-main mb-6">⚾ Bowling</div>
-              <table class="stat-table">
-                <tr><td>Wickets</td><td class="txt-acc fw-700">${mp.bowling?.wickets || 0}</td></tr>
-                <tr><td>Overs</td><td class="txt-acc fw-700">${mp.bowling?.overs || 0}</td></tr>
-                <tr><td>Economy</td><td class="txt-acc fw-700">${mp.bowling?.economy || 0}</td></tr>
-                ${((mp.bowling?.wides > 0 || mp.bowling?.noballs > 0) ? `<tr><td class="txt-err" style="font-size:11px">Wides / N.B. <span class="fs-10">(${mp.bowling.wides||0}w, ${mp.bowling.noballs||0}nb)</span></td><td class="txt-err fw-700">-${(mp.bowling.wides||0)*2 + (mp.bowling.noballs||0)*2}</td></tr>` : '')}
+            <div class="stat-block" style="background:#0a0e17; padding:12px; border-radius:10px; margin-bottom:12px; border:1px solid #1e293b;">
+              <div class="fw-700 txt-main mb-6" style="color:#fff;">⚾ Bowling</div>
+              <table style="width:100%; table-layout:fixed; border-collapse:collapse; background:transparent;">
+                <colgroup>
+                  <col style="width:45%;">
+                  <col style="width:30%;">
+                  <col style="width:25%;">
+                </colgroup>
                 ${(() => {
-                  if (!mp.bowling || mp.bowling.wides !== undefined || mp.bowling.noballs !== undefined) return '';
-                  let pts = (mp.bowling.wickets||0)*25, w = mp.bowling.wickets||0;
-                  if(w>=8)pts+=175; else if(w===7)pts+=150; else if(w===6)pts+=125; else if(w===5)pts+=100; else if(w===4)pts+=75; else if(w===3)pts+=50;
-                  let eco=mp.bowling.economy||0, ov=mp.bowling.overs||0;
+                  if (!mp.bowling) return `<tr><td colspan="2" style="padding:6px 0;border-bottom:1px solid #1e293b;color:#fff;">Total Pts</td><td class="fw-900 ta-right" style="padding:6px 0;border-bottom:1px solid #1e293b;color:#fff;">0</td></tr>`;
+                  
+                  let w = mp.bowling.wickets || 0;
+                  let mdn = mp.bowling.maidens || 0;
+                  let ov = mp.bowling.overs || 0;
+                  let eco = mp.bowling.economy || 0;
+                  let wd = mp.bowling.wides || 0;
+                  let nb = mp.bowling.noballs || 0;
+                  
+                  let wBase = w * 25;
+                  let wMilestone = [ {min: 8, pts: 175}, {min: 7, pts: 150}, {min: 6, pts: 125}, {min: 5, pts: 100}, {min: 4, pts: 75}, {min: 3, pts: 50} ].find(t => w >= t.min)?.pts || 0;
+                  let wTotal = wBase + wMilestone;
+                  let mPts = mdn * 40;
+                  let extPts = -(wd + nb) * 2;
+                  
+                  let ecoPts = 0;
                   if (ov >= 2) {
-                    if(eco<1)pts+=120; else if(eco<2)pts+=80; else if(eco<4)pts+=40; else if(eco<6)pts+=20; else if(eco<8)pts+=10; else if(eco<=10)pts+=0;
-                    else if(eco>16)pts-=60; else if(eco>14)pts-=40; else if(eco>12)pts-=20; else if(eco>10)pts-=10;
+                    ecoPts = [ {max: 0.99, pts: 120}, {max: 1.99, pts: 80}, {max: 3.99, pts: 40}, {max: 5.99, pts: 20}, {max: 7.99, pts: 10}, {max: 10, pts: 0}, {max: 12, pts: -10}, {max: 14, pts: -20}, {max: 16, pts: -40}, {max: Infinity, pts: -60} ].find(t => eco <= t.max)?.pts || 0;
                   }
-                  const diff = mp.bowling.points - pts;
-                  return diff < 0 ? `<tr><td class="txt-err" style="font-size:11px">Extras Penalty (w/nb)</td><td class="txt-err fw-700">${diff}</td></tr>` : '';
+                  
+                  let expected = wTotal + mPts + extPts + ecoPts;
+                  let lbwBowledPts = mp.bowling.points - expected;
+                  
+                  let txt = '';
+                  txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Wickets</td><td class="txt-acc fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b;">${w}</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">${wTotal>0?'+':''}${wTotal}</td></tr>`;
+                  txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Maiden Overs</td><td class="txt-acc fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b;">${mdn}</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">${mPts>0?'+':''}${mPts}</td></tr>`;
+                  txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Economy</td><td class="txt-acc fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b;">${eco}</td><td class="fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b; color:${ecoPts>0?'#38bdf8':ecoPts<0?'#ef4444':'#cbd5e1'}">${ecoPts>0?'+':''}${ecoPts}</td></tr>`;
+                  if (wd > 0 || nb > 0) txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#ef4444;">Wides / N.B.</td><td class="fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#ef4444;">${wd}w, ${nb}nb</td><td class="fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#ef4444;">${extPts}</td></tr>`;
+                  if (lbwBowledPts > 0) txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">LBW / Bowled Bonus</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">+${lbwBowledPts}</td></tr>`;
+                  
+                  txt += `<tr><td colspan="2" class="fw-800" style="padding:8px 0; color:#fff;">Total Pts</td><td class="fw-900 ta-right" style="padding:8px 0; font-size:15px; color:#fff;">${mp.bowling.points||0}</td></tr>`;
+                  return txt;
                 })()}
-                ${(() => {
-                  const eco = mp.bowling?.economy || 0;
-                  const ov  = mp.bowling?.overs || 0;
-                  let p = 0;
-                  if (ov >= 2) {
-                    if (eco > 16) p=-60; else if (eco > 14) p=-40; else if (eco > 12) p=-20; else if (eco > 10) p=-10;
-                  }
-                  return p < 0 ? `<tr><td class="txt-err">Economy Penalty</td><td class="txt-err fw-700">${p}</td></tr>` : '';
-                })()}
-                <tr><td class="txt-acc fw-700">Points</td><td class="txt-acc fw-700">${mp.bowling?.points || 0}</td></tr>
-              </table>
+               </table>
             </div>
 
-            <div class="stat-block">
-              <div class="fw-700 txt-main mb-6">🧤 Fielding</div>
-              <table class="stat-table">
-                <tr><td>Catches</td><td class="txt-acc fw-700">${mp.fielding?.catches || 0}</td></tr>
-                <tr><td>Runouts</td><td class="txt-acc fw-700">${mp.fielding?.runouts || 0}</td></tr>
-                <tr><td>Stumpings</td><td class="txt-acc fw-700">${mp.fielding?.stumpings || 0}</td></tr>
-                <tr><td class="txt-acc fw-700">Points</td><td class="txt-acc fw-700">${mp.fielding?.points || 0}</td></tr>
+            <div class="stat-block" style="background:#0a0e17; padding:12px; border-radius:10px; margin-bottom:12px; border:1px solid #1e293b;">
+              <div class="fw-700 txt-main mb-6" style="color:#fff;">🧤 Fielding</div>
+              <table style="width:100%; table-layout:fixed; border-collapse:collapse; background:transparent;">
+                <colgroup>
+                  <col style="width:45%;">
+                  <col style="width:30%;">
+                  <col style="width:25%;">
+                </colgroup>
+                ${(() => {
+                  if (!mp.fielding) return `<tr><td colspan="2" style="padding:6px 0;border-bottom:1px solid #1e293b;color:#fff;">Total Pts</td><td class="fw-900 ta-right" style="padding:6px 0;border-bottom:1px solid #1e293b;color:#fff;">0</td></tr>`;
+                  let c = mp.fielding.catches || 0;
+                  let r = mp.fielding.runouts || 0;
+                  let s = mp.fielding.stumpings || 0;
+                  let txt = '';
+                  txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Catches</td><td class="txt-acc fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b;">${c}</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">${c>0?'+':''}${c*10}</td></tr>`;
+                  txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Runouts</td><td class="txt-acc fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b;">${r}</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">${r>0?'+':''}${r*10}</td></tr>`;
+                  txt += `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Stumpings</td><td class="txt-acc fw-700 ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b;">${s}</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">${s>0?'+':''}${s*10}</td></tr>`;
+                  txt += `<tr><td colspan="2" class="fw-800" style="padding:8px 0; color:#fff;">Total Pts</td><td class="fw-900 ta-right" style="padding:8px 0; font-size:15px; color:#fff;">${mp.fielding.points||0}</td></tr>`;
+                  return txt;
+                })()}
               </table>
             </div>
 
             ${((mp.bonus?.mom||0)+(mp.bonus?.manual||0)+(mp.bonus?.milestone||0)+(mp.bonus?.hatrick||0)+(mp.bonus?.sixSixes||0)+(mp.bonus?.sixFours||0)) > 0 ? `
-            <div class="stat-block">
-              <div class="fw-700 txt-main mb-6">⭐ Bonus</div>
-              <table class="stat-table">
-                ${(mp.bonus?.mom      ||0) ? `<tr><td>Man of the Match</td><td class="txt-acc fw-700">+${mp.bonus.mom}</td></tr>`      : ''}
-                ${(mp.bonus?.hatrick  ||0) ? `<tr><td>Hat-trick</td>       <td class="txt-acc fw-700">+${mp.bonus.hatrick}</td></tr>`  : ''}
-                ${(mp.bonus?.sixSixes ||0) ? `<tr><td>6 Sixes in Over</td> <td class="txt-acc fw-700">+${mp.bonus.sixSixes}</td></tr>` : ''}
-                ${(mp.bonus?.sixFours ||0) ? `<tr><td>6 Fours in Over</td> <td class="txt-acc fw-700">+${mp.bonus.sixFours}</td></tr>` : ''}
-                ${(mp.bonus?.milestone||0) ? `<tr><td>Milestone</td>        <td class="txt-acc fw-700">+${mp.bonus.milestone}</td></tr>`: ''}
-                ${(mp.bonus?.manual   ||0) ? `<tr><td>Other Bonus</td>      <td class="txt-acc fw-700">${mp.bonus.manual>0?'+':''}${mp.bonus.manual}</td></tr>` : ''}
+            <div class="stat-block" style="background:#0a0e17; padding:12px; border-radius:10px; margin-bottom:12px; border:1px solid #1e293b;">
+              <div class="fw-700 txt-main mb-6" style="color:#fff;">⭐ Bonus</div>
+              <table style="width:100%; table-layout:fixed; border-collapse:collapse; background:transparent;">
+                <colgroup>
+                  <col style="width:45%;">
+                  <col style="width:30%;">
+                  <col style="width:25%;">
+                </colgroup>
+                ${(mp.bonus?.mom      ||0) ? `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Man of the Match</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">+${mp.bonus.mom}</td></tr>`      : ''}
+                ${(mp.bonus?.hatrick  ||0) ? `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Hat-trick</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">+${mp.bonus.hatrick}</td></tr>`  : ''}
+                ${(mp.bonus?.sixSixes ||0) ? `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">6 Sixes in Over</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">+${mp.bonus.sixSixes}</td></tr>` : ''}
+                ${(mp.bonus?.sixFours ||0) ? `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">6 Fours in Over</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">+${mp.bonus.sixFours}</td></tr>` : ''}
+                ${(mp.bonus?.milestone||0) ? `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Milestone</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">+${mp.bonus.milestone}</td></tr>`: ''}
+                ${(mp.bonus?.manual   ||0) ? `<tr><td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Other Bonus</td><td class="ta-center" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#475569">—</td><td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">${mp.bonus.manual>0?'+':''}${mp.bonus.manual}</td></tr>` : ''}
               </table>
             </div>` : ''}
 
-            <div class="stat-block" style="background:${isCaptain ? 'rgba(251,191,36,.08)' : isVC ? 'rgba(139,92,246,.08)' : 'transparent'};border:1px solid ${isCaptain ? 'rgba(251,191,36,.3)' : isVC ? 'rgba(139,92,246,.3)' : 'var(--bdr)'}">
-              <div class="fw-700 txt-main mb-6">👑 Role</div>
-              <table class="stat-table">
+            <div class="stat-block" style="${isCaptain ? 'background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3)' : isVC ? 'background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.3)' : 'background:#0a0e17;border:1px solid #1e293b'}; padding:12px; border-radius:10px;">
+              <div class="fw-700 mb-6" style="color:#fff;">👑 Role</div>
+              <table style="width:100%; table-layout:fixed; border-collapse:collapse; background:transparent;">
+                <colgroup>
+                  <col style="width:45%;">
+                  <col style="width:30%;">
+                  <col style="width:25%;">
+                </colgroup>
                 <tr>
-                  <td>Role</td>
-                  <td style="font-weight:800;color:${isCaptain ? '#fbbf24' : isVC ? '#a78bfa' : 'var(--dim)'}">
+                  <td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Role</td>
+                  <td colspan="2" class="ta-right fw-800" style="padding:6px 0; border-bottom:1px solid #1e293b; color:${isCaptain ? '#fbbf24' : isVC ? '#a78bfa' : '#94a3b8'}">
                     ${isCaptain ? '👑 Captain' : isVC ? '⭐ Vice Captain' : '—'}
                   </td>
                 </tr>
                 <tr>
-                  <td>Multiplier</td>
-                  <td style="font-weight:800;color:${isCaptain ? '#fbbf24' : isVC ? '#a78bfa' : 'var(--dim)'}">
+                  <td style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Multiplier</td>
+                  <td colspan="2" class="ta-right fw-800" style="padding:6px 0; border-bottom:1px solid #1e293b; color:${isCaptain ? '#fbbf24' : isVC ? '#a78bfa' : '#94a3b8'}">
                     ${isCaptain ? '2×' : isVC ? '1.5×' : '1×'}
                   </td>
                 </tr>
                 ${(isCaptain || isVC) ? `
                 <tr>
-                  <td>Base pts</td>
-                  <td class="txt-acc fw-700">${base}</td>
+                  <td colspan="2" style="padding:6px 0; border-bottom:1px solid #1e293b; color:#cbd5e1;">Base Pts</td>
+                  <td class="txt-acc fw-700 ta-right" style="padding:6px 0; border-bottom:1px solid #1e293b;">${base}</td>
                 </tr>
                 <tr>
-                  <td style="font-weight:800">Final pts</td>
-                  <td style="font-weight:900;font-size:15px;color:${isCaptain ? '#fbbf24' : '#a78bfa'}">${tot}</td>
+                  <td colspan="2" class="fw-800" style="padding:8px 0; color:#fff;">Final Pts</td>
+                  <td class="fw-900 ta-right" style="padding:8px 0; font-size:15px; color:${isCaptain ? '#fbbf24' : '#a78bfa'}">${tot}</td>
                 </tr>` : ''}
               </table>
             </div>

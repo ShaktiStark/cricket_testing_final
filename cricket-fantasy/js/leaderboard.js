@@ -79,19 +79,42 @@ export function playerTotalWithCap(player, tournament) {
 
   // Fallback: points applied at team/tournament level (no matchPoints entry)
 
-  return Math.round(matchTotal * 10) / 10;
+  return Math.round(matchTotal);
 }
 
-// ── Latest-week captain badge for a player ────────
+// ── Captain badge for a player ────────────────────
+// Shows badge based on the LATEST week set for this player's team
+// (newest date wins, whether past or future). This way when you
+// change C/VC for next week, the badge updates immediately.
 export function captainBadge(playerId, tournament) {
   const wc = tournament.weeklyCaptains || {};
-  const sortedWks = Object.keys(wc).sort().reverse();
-  for (const wk of sortedWks) {
-    for (const sel of Object.values(wc[wk] || {})) {
-      if (playerId === sel.captain) return 'C';
-      if (playerId === sel.vc) return 'VC';
+  const teams = tournament.teams || [];
+
+  // Find which team this player belongs to
+  let teamId = null;
+  for (const tm of teams) {
+    if ((tm.players || []).some(p => String(p.id) === String(playerId))) {
+      teamId = String(tm.id);
+      break;
     }
   }
+  if (!teamId) return null;
+
+  // Get all week keys for this team, sorted descending (newest first).
+  // Use plain string sort on YYYY-MM-DD — safe for date comparison.
+  const weeksForTeam = Object.keys(wc)
+    .filter(wk => wc[wk]?.[teamId])
+    .sort()
+    .reverse(); // newest first
+
+  if (!weeksForTeam.length) return null;
+
+  // Use the latest week's selection for this team
+  const sel = wc[weeksForTeam[0]][teamId];
+  if (!sel) return null;
+
+  if (String(sel.captain) === String(playerId)) return 'C';
+  if (String(sel.vc) === String(playerId)) return 'VC';
   return null;
 }
 
@@ -167,17 +190,17 @@ export function renderLeaderboard(t) {
 
   ranked.forEach((team, i) => {
     const isLeader = i === 0;
-    const diff = i !== 0 ? prevPoints - (team.total || 0) : 0;
-    prevPoints = team.total || 0;
+    const prevTotal = Math.round(prevPoints || 0);
+    const currTotal = Math.round(team.total || 0);
+    const diff = i !== 0 ? prevTotal - currTotal : 0;
+    prevPoints = currTotal;
     const rankColor = isLeader ? '#10b981' : '#f87171';
     const statusLbl = isLeader
       ? '🟢 Leader'
-      : `🔴 ${diff % 1 === 0 ? diff : diff.toFixed(1)} pts behind`;
+      : `🔴 ${diff} pts behind`;
     const ownerTag = team.owner && norm(team.owner) !== norm(team.name)
       ? `<span style="color:var(--acc)">👤 ${escHtml(team.owner)}</span>` : '';
-    const displayTotal = (team.total || 0) % 1 === 0
-      ? (team.total || 0)
-      : (team.total || 0).toFixed(1);
+    const displayTotal = currTotal;
 
     const row = document.createElement('div');
     row.className = 'team-row';
@@ -235,15 +258,22 @@ export function renderLeaderboard(t) {
         let cap = {};
         if (m.date) {
           const matchTs = new Date(m.date).getTime();
-          const exactWk = weekKey(new Date(m.date));
-          if (wc[exactWk]?.[team.id]) {
-            cap = wc[exactWk][team.id];
+          const matchWk = weekKey(new Date(m.date));
+          const tId = String(team.id);
+
+          if (wc[matchWk]?.[tId]) {
+            cap = wc[matchWk][tId];
           } else {
+            let found = false;
             for (const wk of sortedWks) {
-              if (new Date(wk).getTime() <= matchTs && wc[wk]?.[team.id]) {
-                cap = wc[wk][team.id];
+              if (new Date(wk).getTime() <= matchTs && wc[wk]?.[tId]) {
+                cap = wc[wk][tId];
+                found = true;
                 break;
               }
+            }
+            if (!found && sortedWks.length && wc[sortedWks[0]]?.[tId]) {
+              cap = wc[sortedWks[0]][tId];
             }
           }
         }
@@ -251,17 +281,16 @@ export function renderLeaderboard(t) {
         const isC = cap && String(cap.captain) === String(p.id);
         const isVC = cap && String(cap.vc) === String(p.id);
         const mult = isC ? 2 : isVC ? 1.5 : 1;
-        total = Math.round(total * mult * 10) / 10;
+        total = Math.round(total * mult);
 
         return `
-          <tr style="border-bottom:1px solid #222;cursor:pointer;background:#000;transition:background .15s"
-              onmouseover="this.style.background='#111'"
-              onmouseout="this.style.background='#000'"
+          <tr style="cursor:pointer;transition:background .15s;background:transparent"
+              onmouseover="this.style.background='#2b2f3e'"
+              onmouseout="this.style.background='transparent'"
               onclick="event.stopPropagation();window.switchTab('matches');window.showMatchDetail('${escAttr(m.id)}')">
-            <td style="padding:7px 8px;font-size:12px;color:#fff">${escHtml(m.name || '')}</td>
-            <td style="padding:7px 8px;text-align:right;font-size:12px;font-weight:700;white-space:nowrap">
-              ${mult > 1 ? `<span style="color:#888;text-decoration:line-through;margin-right:4px">${Math.round(total / mult * 10) / 10}</span>` : ''}
-              <span style="background:#fff;color:#000;padding:3px 8px;border-radius:999px;font-weight:800">
+            <td style="padding:7px 8px;font-size:12px;color:var(--txt);border-bottom:1px solid #2b2f3e;border-top:none;background:transparent">${escHtml(m.name || '')}</td>
+            <td style="padding:7px 8px;text-align:right;font-size:12px;font-weight:700;white-space:nowrap;border-bottom:1px solid #2b2f3e;border-top:none;background:transparent">
+              <span style="background:rgba(255,255,255,0.06);border:1px solid #2b2f3e;color:var(--txt);padding:3px 8px;border-radius:999px;font-weight:800">
                 ${total > 0 ? '+' : ''}${total}
               </span>
             </td>
@@ -294,19 +323,19 @@ export function renderLeaderboard(t) {
             📅 Match-by-Match History
           </div>
 
-          <div style="background:#000;border-radius:10px;overflow:hidden;border:1px solid #222">
-            <table style="width:100%;border-collapse:collapse">
+          <div style="background:#1c1f2a;border-radius:10px;overflow:hidden;border:1px solid #2b2f3e">
+            <table style="width:100%;border-collapse:collapse;background:transparent">
               <thead>
                 <tr>
-                  <th style="text-align:left;padding:7px 8px;font-size:10px;color:#aaa;text-transform:uppercase;background:#000;border-bottom:1px solid #333;font-weight:600">Fixture</th>
-                  <th style="text-align:right;padding:7px 8px;font-size:10px;color:#aaa;text-transform:uppercase;background:#000;border-bottom:1px solid #333;font-weight:600">Pts</th>
+                  <th style="text-align:left;padding:7px 8px;font-size:10px;color:#9aa3b2;text-transform:uppercase;border-bottom:1px solid #2b2f3e;border-top:none;font-weight:600;background:transparent">Fixture</th>
+                  <th style="text-align:right;padding:7px 8px;font-size:10px;color:#9aa3b2;text-transform:uppercase;border-bottom:1px solid #2b2f3e;border-top:none;font-weight:600;background:transparent">Pts</th>
                 </tr>
               </thead>
               <tbody>
                 ${matchRows
-            ? matchRows
-            : `<tr><td colspan="2" style="color:#666;font-size:11px;padding:8px;background:#000">No points yet</td></tr>`
-          }
+          ? matchRows
+          : `<tr><td colspan="2" style="color:#9aa3b2;font-size:11px;padding:8px;text-align:center">No points yet</td></tr>`
+        }
               </tbody>
             </table>
           </div>

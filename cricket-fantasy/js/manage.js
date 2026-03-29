@@ -435,32 +435,23 @@ export function filterManualPlayers() {
   const sel     = document.getElementById('manual-player');
   if (!sel) return;
 
-  let options = '';
+  let allPlayers = (t.teams || []).flatMap(tm => tm.players || []);
 
-  if (!matchId) {
-    // No match selected — show all players
-    options = (t.teams || []).flatMap(tm =>
-      (tm.players || []).map(p =>
-        `<option value="${p.id}">[${escHtml(tm.name)}] ${escHtml(p.name)}</option>`
-      )
-    ).join('');
-  } else {
+  if (matchId) {
     // Match selected — only show players who have points in that match
-    options = (t.teams || []).flatMap(tm =>
-      (tm.players || [])
-        .filter(p => p.matchPoints && p.matchPoints[matchId])
-        .map(p => {
-          const mp    = p.matchPoints[matchId] || {};
-          const total = (mp.batting?.points  || 0) +
-                        (mp.bowling?.points  || 0) +
-                        (mp.fielding?.points || 0);
-          return `<option value="${p.id}">[${escHtml(tm.name)}] ${escHtml(p.name)} — ${total} pts</option>`;
-        })
-    ).join('');
+    allPlayers = allPlayers.filter(p => p.matchPoints && p.matchPoints[matchId]);
+  }
 
-    if (!options) {
-      options = `<option value="" disabled>No players scored in this match yet</option>`;
-    }
+  // Sort alphabetically
+  allPlayers.sort((a, b) => a.name.localeCompare(b.name));
+
+  let options = '';
+  if (!allPlayers.length) {
+    options = `<option value="" disabled>No players scored in this match yet</option>`;
+  } else {
+    options = allPlayers.map(p => 
+      `<option value="${p.id}">${escHtml(p.name)}</option>`
+    ).join('');
   }
 
   sel.innerHTML = options;
@@ -472,11 +463,12 @@ export function renderSubManual(t) {
   const el      = document.getElementById('sub-manual');
   const matches = (t.matches || []).filter(m => m.status === 'completed')
     .map(m => `<option value="${escHtml(m.id)}">${escHtml(m.name)}</option>`).join('');
+
   // Default: all players (shown when no match selected)
-   // Default: all players (shown when no match selected)
-  const players = (t.teams || []).flatMap(tm =>
-    (tm.players || []).map(p => `<option value="${p.id}">[${escHtml(tm.name)}] ${escHtml(p.name)}</option>`)
-  ).join('');
+  let allPlayers = (t.teams || []).flatMap(tm => tm.players || []);
+  allPlayers.sort((a, b) => a.name.localeCompare(b.name));
+  const players = allPlayers.map(p => `<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+
 
   const teams = (t.teams || [])
     .map(tm => `<option value="${tm.id}">${escHtml(tm.name)}</option>`).join('');
@@ -491,7 +483,7 @@ export function renderSubManual(t) {
         <select class="inp" id="manual-player" style="margin-top:6px">${players}</select>
       </div>
       <div>
-        <div class="lbl fs-11">Match (optional)</div>
+        <div class="lbl fs-11">Match</div>
         <select class="inp" id="manual-match" style="margin-top:6px" onchange="filterManualPlayers()">
           <option value="">— Any match —</option>${matches}
         </select>
@@ -704,125 +696,139 @@ export function renderSubInjury(t) {
   const el = document.getElementById('sub-injury');
   el.innerHTML = `
     <div class="card">
-      <div class="lbl">🩹 Injury Replacement</div>
-      <div class="txt-dim fs-13" style="margin:10px 0 20px;line-height:1.7">Mark a player injured and add a replacement. Both will be shown, and points transfer automatically.</div>
+      <div class="lbl">➕ Add Player to Team</div>
+      <div class="txt-dim fs-13" style="margin:10px 0 20px;line-height:1.7">Add a new player to an owner's team. They start with 0 pts and earn points from the next match onwards.</div>
       <div id="injury-msg" style="display:none;margin-bottom:14px"></div>
       <div class="flex flex-col gap-14">
         <div>
           <div class="lbl">Team</div>
           <select class="inp" id="inj-team" onchange="updateInjuryPlayers()">
             <option value="">— Select team —</option>
-            ${(t.teams || []).map(tm => `<option value="${tm.id}">${escHtml(tm.name)}</option>`).join('')}
+            ${(t.teams || []).map(tm => `<option value="${tm.id}">${escHtml(tm.owner || tm.name)}</option>`).join('')}
           </select>
         </div>
-        <div id="inj-player-block" style="display:none">
-          <div class="lbl">Injured Player</div>
-          <select class="inp" id="inj-player"><option value="">— Select player —</option></select>
-        </div>
         <div id="inj-rep-block" style="display:none">
-          <div class="lbl">Replacement Player Name</div>
+          <div class="lbl">New Player Name</div>
           <div class="flex gap-8">
-            <input class="inp flex-1" id="inj-rep" placeholder="Type replacement player's full name" onkeydown="if(event.key==='Enter') window.searchReplacementPlayer()"/>
+            <input class="inp flex-1" id="inj-rep" placeholder="Type player name (e.g. Hardik)" autocomplete="off"
+              oninput="window.liveSearchPlayer(this.value)"
+              onkeydown="if(event.key==='Enter') window.searchReplacementPlayer()"/>
             <button class="btn btn-primary" onclick="window.searchReplacementPlayer()" style="white-space:nowrap">🔍 Search</button>
           </div>
           <div id="inj-search-res" style="margin-top:10px;display:none"></div>
         </div>
-        <button class="btn btn-danger" id="inj-submit-btn" style="display:none" onclick="processInjury()">⚡ Process Replacement</button>
+        <button class="btn btn-success" id="inj-submit-btn" style="display:none" onclick="processInjury()">➕ Add Player to Team</button>
       </div>
-      ${buildCurrentInjuries(t)}
+      ${buildCurrentPlayers(t)}
     </div>
   `;
 }
 
 export function updateInjuryPlayers() {
   const teamId = document.getElementById('inj-team')?.value;
-  const t      = getTournament();
-  const team   = (t?.teams || []).find(x => x.id === teamId);
-  const pb     = document.getElementById('inj-player-block');
   const rb     = document.getElementById('inj-rep-block');
   const sb     = document.getElementById('inj-submit-btn');
   const res    = document.getElementById('inj-search-res');
   const repInp = document.getElementById('inj-rep');
-  
-  if (res) { res.style.display = 'none'; res.innerHTML = ''; }
+
+  if (res)    { res.style.display = 'none'; res.innerHTML = ''; }
   if (repInp) repInp.value = '';
   state.injuryReplacement = null;
-  
-  if (!team) { [pb, rb, sb].forEach(el => el && (el.style.display = 'none')); return; }
-  const ps = document.getElementById('inj-player');
-  ps.innerHTML = '<option value="">— Select player —</option>' +
-    (team.players || []).filter(p => !p.isInjured).map(p =>
-      `<option value="${p.id}">${escHtml(p.name)} (${playerTotalWithCap(p, t) || 0} pts)</option>`
-    ).join('');
-  [pb, rb].forEach(el => el && (el.style.display = 'block'));
+
+  if (!teamId) {
+    if (rb) rb.style.display = 'none';
+    if (sb) sb.style.display = 'none';
+    return;
+  }
+  if (rb) rb.style.display = 'block';
   if (sb) sb.style.display = 'none';
 }
+
+// ── Debounce timer for live search ──
+let _injSearchTimer = null;
+
+window.liveSearchPlayer = function(val) {
+  clearTimeout(_injSearchTimer);
+  const q = val.trim();
+  if (q.length < 2) {
+    const resEl = document.getElementById('inj-search-res');
+    if (resEl) { resEl.style.display = 'none'; resEl.innerHTML = ''; }
+    const btnEl = document.getElementById('inj-submit-btn');
+    if (btnEl) btnEl.style.display = 'none';
+    state.injuryReplacement = null;
+    return;
+  }
+  _injSearchTimer = setTimeout(() => window.searchReplacementPlayer(), 350);
+};
 
 window.searchReplacementPlayer = async function() {
   const repName = (document.getElementById('inj-rep')?.value || '').trim();
   const resEl   = document.getElementById('inj-search-res');
   const btnEl   = document.getElementById('inj-submit-btn');
-  
-  if (!repName) return;
-  
+
+  if (!repName || repName.length < 2) return;
+
   if (resEl) {
-    resEl.innerHTML = '<div class="txt-dim fs-12">🔍 Searching database...</div>';
+    resEl.innerHTML = '<div class="txt-dim fs-12" style="padding:8px">🔍 Searching...</div>';
     resEl.style.display = 'block';
   }
   if (btnEl) btnEl.style.display = 'none';
   state.injuryReplacement = null;
-  
+
   try {
-    const res = await fetch('api/match_players.php', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ names: [repName] })
-    });
-    const j = await res.json();
-    if (j.status === 'success' && j.results && j.results[repName]) {
-      const dbMatch = j.results[repName];
-      
-      if (dbMatch.status === 'exact' || dbMatch.status === 'auto') {
-        const top = dbMatch.status === 'exact' ? dbMatch.match : dbMatch.suggestions[0];
-        window.selectReplacementPlayer(top);
-      } else if (dbMatch.status === 'fuzzy') {
-        window.injSuggestions = dbMatch.suggestions; // temporary store
-        const pills = dbMatch.suggestions.map((s, idx) => `
-          <button class="name-pill" style="margin-right:8px;margin-bottom:8px;text-align:left;padding:6px 12px;background:var(--surf1);border:1px solid var(--bdr);color:var(--txt);border-radius:6px;cursor:pointer"
-            onclick="window.selectReplacementPlayer(window.injSuggestions[${idx}])">
-            <div style="font-weight:600">${escHtml(s.name)}
-              <span style="color:var(--dim);font-size:10px;margin-left:4px">${Math.round(s.score * 100)}%</span>
-            </div>
-            ${s.team ? `<div style="font-size:10px;color:var(--dim);margin-top:3px">${s.teamImg ? `<img src="${escAttr(s.teamImg)}" style="width:12px;height:12px;border-radius:50%;vertical-align:middle;margin-right:4px"/>` : ''}${escHtml(s.team)} · ${escHtml(s.role || '')}</div>` : ''}
-          </button>
-        `).join('');
-        
-        resEl.innerHTML = `
-          <div class="txt-dim fs-12 mb-8" style="color:var(--warn)">⚠️ Multiple or fuzzy matches found. Click to select the correct player:</div>
-          <div class="flex" style="flex-wrap:wrap">
-            ${pills}
-          </div>
-          <button class="btn btn-ghost" style="margin-top:4px;font-size:11px" onclick="window.selectReplacementPlayer({name: '${escAttr(repName)}', status: 'unknown'})">Keep "${escHtml(repName)}" (Unknown DB ID)</button>
-        `;
-      } else {
-        resEl.innerHTML = `
-          <div class="alert alert-err" style="font-size:12px;margin-bottom:8px;padding:8px">❌ No match found in DB for "${escHtml(repName)}".</div>
-          <button class="btn btn-ghost" style="font-size:11px" onclick="window.selectReplacementPlayer({name: '${escAttr(repName)}', status: 'unknown'})">Use "${escHtml(repName)}" Anyway (No DB Link)</button>
-        `;
-      }
-    } else {
-      resEl.innerHTML = '<div class="alert alert-err" style="padding:8px;font-size:12px">❌ API failed or returned unexpected format.</div>';
+    const res = await fetch(`api/search_db_players.php?q=${encodeURIComponent(repName)}`);
+    const j   = await res.json();
+    const results = j.results || [];
+
+    if (!results.length) {
+      resEl.innerHTML = `
+        <div class="alert alert-err" style="font-size:12px;padding:8px">❌ No players found matching "${escHtml(repName)}".</div>
+        <button class="btn btn-ghost" style="font-size:11px;margin-top:6px" onclick="window.selectReplacementPlayer({name:'${escAttr(repName)}',status:'unknown'})">Use "${escHtml(repName)}" anyway (no DB link)</button>
+      `;
+      return;
     }
+
+    // Auto-select if exact name match
+    const exactNorm = norm(repName);
+    const exact = results.find(r => norm(r.name) === exactNorm);
+    if (exact) {
+      window.selectReplacementPlayer(exact);
+      return;
+    }
+
+    // Show list of clickable results
+    window._injResults = results;
+    resEl.innerHTML = `
+      <div class="txt-dim fs-11" style="padding:4px 0 8px;color:var(--acc);font-weight:700;text-transform:uppercase;letter-spacing:.5px">${results.length} result${results.length > 1 ? 's' : ''} — click to select</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${results.map((r, idx) => `
+          <button onclick="window.selectReplacementPlayer(window._injResults[${idx}])"
+            style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surf1);border:1px solid var(--bdr);border-radius:8px;cursor:pointer;text-align:left;transition:background .15s;width:100%"
+            onmouseover="this.style.background='var(--surf2)'" onmouseout="this.style.background='var(--surf1)'">
+            ${r.player_img
+              ? `<img src="${escAttr(r.player_img)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--bdr)"/>`
+              : `<div style="width:32px;height:32px;border-radius:50%;background:var(--surf2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px">🏏</div>`
+            }
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:13px;color:var(--txt)">${escHtml(r.name)}</div>
+              <div style="font-size:11px;color:var(--dim);margin-top:2px">${[r.team, r.role].filter(Boolean).map(escHtml).join(' · ')}</div>
+            </div>
+          </button>
+        `).join('')}
+      </div>
+    `;
   } catch (err) {
-    resEl.innerHTML = '<div class="alert alert-err" style="padding:8px;font-size:12px">❌ Error searching DB: ' + escHtml(err.message) + '</div>';
+    resEl.innerHTML = `<div class="alert alert-err" style="padding:8px;font-size:12px">❌ Search error: ${escHtml(err.message)}</div>`;
   }
 };
+
+
 
 window.selectReplacementPlayer = function(playerData) {
   const t = getTournament();
   
-  // Check if player is already owned by ANY team
-  const existingTeam = (t.teams || []).find(tm => 
+  // Check if player is already on ANY team in this tournament
+  const existingTeam = (t.teams || []).find(tm =>
     (tm.players || []).some(p => norm(p.name) === norm(playerData.name))
   );
 
@@ -831,7 +837,7 @@ window.selectReplacementPlayer = function(playerData) {
 
   if (existingTeam) {
     if (resEl) {
-      resEl.innerHTML = `<div class="alert alert-err" style="font-size:13px;padding:8px">❌ <strong>${escHtml(playerData.name)}</strong> is already owned by <strong>${escHtml(existingTeam.owner || existingTeam.name)}</strong>. You must select an unowned player!</div>`;
+      resEl.innerHTML = `<div class="alert alert-err" style="font-size:13px;padding:8px">❌ <strong>${escHtml(playerData.name)}</strong> is already owned by <strong>${escHtml(existingTeam.owner || existingTeam.name)}</strong>. You can only add unowned players.</div>`;
     }
     if (btnEl) btnEl.style.display = 'none';
     state.injuryReplacement = null;
@@ -852,77 +858,69 @@ window.selectReplacementPlayer = function(playerData) {
   if (btnEl) btnEl.style.display = 'block';
 };
 
-function buildCurrentInjuries(t) {
+function buildCurrentPlayers(t) {
   const injured = (t.teams || []).flatMap(tm =>
-    (tm.players || []).filter(p => p.isInjured).map(p => ({ ...p, teamName: tm.name }))
+    (tm.players || []).filter(p => p.isInjured).map(p => ({ ...p, teamOwner: tm.owner || tm.name }))
   );
   if (!injured.length) return '';
   return `
     <div style="margin-top:24px">
-      <div class="lbl">Current Injuries</div>
+      <div class="lbl">Injured Players</div>
       <div style="margin-top:10px">
         ${injured.map(p => {
-          const team = (t.teams || []).find(tm => tm.name === p.teamName) || {players:[]};
-          const rep = team.players.find(r => r.replacedFor === p.name);
-          const repHtml = rep ? `
-            <div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:4px;border-left:2px solid var(--ok)">
-              <span style="font-size:11px;color:var(--dim)">➡️ replaced by</span>
-              <span style="font-size:13px;font-weight:600;color:var(--ok)">${escHtml(rep.name)}</span>
-              ${rep.role ? `<span style="font-size:10px;color:var(--dim)">· ${escHtml(rep.role)}</span>` : ''}
-            </div>
-          ` : '';
-
           return `
           <div style="padding:10px 0;border-bottom:1px solid var(--bdr)">
             <div class="flex jc-between items-center">
               <div>
                 <div style="color:var(--err);font-weight:600;font-size:14px">🩹 ${escHtml(p.name)}</div>
-                <div class="txt-dim fs-12" style="margin-top:2px">${escHtml(p.teamName)}</div>
+                <div class="txt-dim fs-12" style="margin-top:2px">${escHtml(p.teamOwner)}</div>
               </div>
               <span class="badge" style="background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.35);color:var(--err)">injured</span>
             </div>
-            ${repHtml}
           </div>`;
         }).join('')}
       </div>
     </div>`;
-}
+}  
 
 export function processInjury() {
-  const teamId   = document.getElementById('inj-team')?.value;
-  const playerId = document.getElementById('inj-player')?.value;
+  const teamId    = document.getElementById('inj-team')?.value;
   const activeRep = state.injuryReplacement;
-  const msgEl    = document.getElementById('injury-msg');
-  const showMsg  = html => { if (msgEl) { msgEl.innerHTML = html; msgEl.style.display = 'block'; } };
+  const msgEl     = document.getElementById('injury-msg');
+  const showMsg   = html => { if (msgEl) { msgEl.innerHTML = html; msgEl.style.display = 'block'; } };
 
-  if (!teamId || !playerId || !activeRep) { showMsg('<div class="alert alert-err">Please search and select a replacement player first.</div>'); return; }
-  const t       = getTournament();
-  const team    = (t.teams || []).find(x => x.id === teamId);
-  const injured = (team?.players || []).find(p => p.id === playerId);
-  if (!injured) return;
+  if (!teamId)    { showMsg('<div class="alert alert-err">Please select a team first.</div>'); return; }
+  if (!activeRep) { showMsg('<div class="alert alert-err">Please search and select a player to add.</div>'); return; }
 
-  const rep = {
-    id: activeRep.externalId || makeId('rep'), 
-    name: activeRep.name, 
-    originalName: activeRep.name,
-    playerImg: activeRep.playerImg || null,
-    role: activeRep.role || null,
-    country: activeRep.country || null,
-    totalPoints:    injured.totalPoints    || 0,
-    battingPoints:  injured.battingPoints  || 0,
-    bowlingPoints:  injured.bowlingPoints  || 0,
-    fieldingPoints: injured.fieldingPoints || 0,
-    matchPoints:    { ...(injured.matchPoints || {}) },
-    isInjured: false, 
-    replacedFor: injured.name
+  const t    = getTournament();
+  const team = (t.teams || []).find(x => String(x.id) === String(teamId));
+  if (!team) return;
+
+  // Brand new player — starts with 0 pts, earns only from next match onwards
+  const newPlayer = {
+    id:             activeRep.externalId || makeId('rep'),
+    name:           activeRep.name,
+    originalName:   activeRep.name,
+    playerImg:      activeRep.playerImg  || null,
+    role:           activeRep.role       || null,
+    country:        activeRep.country    || null,
+    cricketTeam:    activeRep.team       || null,
+    totalPoints:    0,
+    battingPoints:  0,
+    bowlingPoints:  0,
+    fieldingPoints: 0,
+    matchPoints:    {},
+    isInjured:      false,
+    activeFromDate: new Date().toISOString()
   };
-  
+
   const newTeams = (t.teams || []).map(tm => {
-    if (tm.id !== teamId) return tm;
-    return { ...tm, players: [...tm.players.map(p => p.id === playerId ? { ...p, isInjured: true } : p), rep] };
+    if (String(tm.id) !== String(teamId)) return tm;
+    return { ...tm, players: [...(tm.players || []), newPlayer] };
   });
+
   updateTournament({ ...t, teams: newTeams });
-  state.injuryReplacement = null; // Clear so it doesn't leak to next operation
-  showMsg(`<div class="alert alert-ok">✅ ${escHtml(injured.name)} ➡️ ${escHtml(rep.name)}. ${injured.totalPoints || 0} pts transferred successfully!</div>`);
+  state.injuryReplacement = null;
+  showMsg(`<div class="alert alert-ok">✅ <strong>${escHtml(newPlayer.name)}</strong> added to <strong>${escHtml(team.owner || team.name)}</strong>'s team with 0 pts. They'll earn points from next match onwards.</div>`);
   renderSubInjury(getTournament());
 }

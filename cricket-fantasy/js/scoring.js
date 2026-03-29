@@ -95,7 +95,7 @@ export function applyMatch(tournament, matchInfo, rawScorecard) {
 
       let bat = 0, bowl = 0, field = 0, neg = 0;
       let runs = 0, balls = 0, fours = 0, sixes = 0, sr = 0;
-      let wkts = 0, overs = 0, runsConceded = 0, eco = 0, wides = 0, noballs = 0;
+      let wkts = 0, overs = 0, maidens = 0, runsConceded = 0, eco = 0, wides = 0, noballs = 0;
       let catches = 0, runouts = 0, stumpings = 0;
 
       (scorecard.innings || []).forEach(inn => {
@@ -118,12 +118,13 @@ export function applyMatch(tournament, matchInfo, rawScorecard) {
           if (!isSamePlayer(player.name, bw.bowler?.name || '')) return;
           wkts = +(bw.w || 0);
           overs = parseOvers(bw.o || 0);
+          maidens = +(bw.m || 0);
           runsConceded = +(bw.r || 0);
           eco = bw.eco ? parseFloat(bw.eco) : 0;
           wides = +(bw.wd || 0);
           noballs = +(bw.nb || 0);
           const lbwBowled = lbwMap[norm(player.name)] || 0;
-          const bowlRes = calcBowl(wkts, bw.m || 0, runsConceded, overs, eco, wides, noballs, lbwBowled);
+          const bowlRes = calcBowl(wkts, maidens, runsConceded, overs, eco, wides, noballs, lbwBowled);
           bowl = bowlRes.total; neg += bowlRes.negative;
         });
 
@@ -142,7 +143,7 @@ export function applyMatch(tournament, matchInfo, rawScorecard) {
 
       const mp = {
         batting: { runs, balls, strikeRate: sr, fours, sixes, points: bat },
-        bowling: { wickets: wkts, overs, runs: runsConceded, economy: eco, wides, noballs, points: bowl },
+        bowling: { wickets: wkts, overs, maidens, runs: runsConceded, economy: eco, wides, noballs, points: bowl },
         fielding: { catches, runouts, stumpings, points: field },
         bonus: { milestone: 0, mom: 0 },
         negative: neg

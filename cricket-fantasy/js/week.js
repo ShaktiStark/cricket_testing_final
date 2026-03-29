@@ -2,18 +2,25 @@
 // WEEK — ISO week helpers (Mon-Sun windows)
 // ═══════════════════════════════════════════════════
 
+function toLocalYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function getWeekMonday(date) {
-  const d   = new Date(date);
-  const day = d.getDay();                        
+  const d = new Date(date);
+  const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
+  return toLocalYMD(d);
 }
 
 export function getWeekSunday(date) {
   const mon = new Date(getWeekMonday(date));
   mon.setDate(mon.getDate() + 6);
-  return mon.toISOString().slice(0, 10);
+  return toLocalYMD(mon);
 }
 
 
@@ -50,7 +57,7 @@ export function weekKeyFromInput(val) {
   startW1.setDate(jan4.getDate() - (jan4.getDay() || 7) + 1);
   const mon = new Date(startW1);
   mon.setDate(startW1.getDate() + (week - 1) * 7);
-  return mon.toISOString().slice(0, 10);
+  return toLocalYMD(mon);
 }
 
 export function getWeekKeyFromMatch(matchId, tournament) {

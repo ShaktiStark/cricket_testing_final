@@ -54,7 +54,9 @@ try{
   $existingPlayers = [];
 
   $stmt = $pdo->prepare(
-    'SELECT p.*, t.tournament_id
+    'SELECT p.id, p.name, p.total_points, p.batting_points, p.bowling_points,
+            p.fielding_points, p.match_points, p.cricket_team, p.active_from_date,
+            t.tournament_id
      FROM players p
      JOIN teams t ON t.id = p.team_id
      WHERE t.tournament_id = ?'
@@ -115,12 +117,20 @@ foreach(($body['teams'] ?? []) as $team){
   ? json_encode($p['matchPoints'], JSON_UNESCAPED_SLASHES)
   : ($old['match_points'] ?? null);
 
+    // Resolve active_from_date: prefer frontend value (new replacements), else keep existing DB value
+    $activeFromDate = null;
+    if (!empty($p['activeFromDate'])) {
+      $activeFromDate = date('Y-m-d H:i:s', strtotime($p['activeFromDate']));
+    } elseif (!empty($old['active_from_date'])) {
+      $activeFromDate = $old['active_from_date'];
+    }
+
     $pdo->prepare(
       'INSERT INTO players
          (team_id, name, original_name, price,
           total_points, batting_points, bowling_points, fielding_points,
-          match_points, is_injured, cricket_team, replaced_for)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+          match_points, is_injured, cricket_team, replaced_for, active_from_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
     )->execute([
       $newTeamId,
       $p['name'],
@@ -133,7 +143,8 @@ foreach(($body['teams'] ?? []) as $team){
       $matchPoints,
       isset($p['isInjured']) ? ($p['isInjured'] ? 1 : 0) : 0,
       $p['cricketTeam'] ?? null,
-      $p['replacedFor'] ?? null
+      $p['replacedFor'] ?? null,
+      $activeFromDate
     ]);
 
     $newPlayerId = $pdo->lastInsertId();
